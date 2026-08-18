@@ -1,6 +1,8 @@
 package nl.hiertoen.app.data.local
 
+import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import nl.hiertoen.app.data.local.dao.TrackPointDao
@@ -25,5 +27,17 @@ abstract class HierToenDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "hiertoen.db"
+
+        @Volatile
+        private var instance: HierToenDatabase? = null
+
+        fun getInstance(context: Context): HierToenDatabase =
+            instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    HierToenDatabase::class.java,
+                    DATABASE_NAME,
+                ).build().also { instance = it }
+            }
     }
 }

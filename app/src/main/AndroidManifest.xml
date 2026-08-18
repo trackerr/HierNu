@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!--
-        Toestemmingen voor ritregistratie (ACCESS_FINE_LOCATION, ACTIVITY_RECOGNITION,
-        FOREGROUND_SERVICE_LOCATION, POST_NOTIFICATIONS) worden toegevoegd in stap 3
-        van de bouwvolgorde (TrackingService), zie technische bouwspecificatie §12.4 en §17.1.
-    -->
+    <!-- Ritregistratie: nauwkeurige route + lokale beeldzoekopdracht (§12.4). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- IN_VEHICLE, ON_BICYCLE en STILL detecteren voor de MotionStateEngine (§5, §12.4). -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Langdurige routeopname met zichtbare melding (§12.4). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Foreground-service melding op relevante Android-versies (§12.4). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".HierToenApp"
@@ -25,6 +30,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".tracking.TrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 
 </manifest>

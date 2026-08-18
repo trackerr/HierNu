@@ -79,6 +79,7 @@ dependencies {
 
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.play.services.location)
 
     // --- Testen ---
     testImplementation(libs.junit)

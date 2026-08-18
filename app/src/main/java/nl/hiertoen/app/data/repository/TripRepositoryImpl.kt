@@ -5,6 +5,7 @@ import nl.hiertoen.app.data.local.dao.TrackPointDao
 import nl.hiertoen.app.data.local.dao.TripDao
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TripEntity
+import nl.hiertoen.app.data.local.entity.TripStatus
 
 class TripRepositoryImpl(
     private val tripDao: TripDao,
@@ -13,6 +14,8 @@ class TripRepositoryImpl(
     override fun observeTrips(): Flow<List<TripEntity>> = tripDao.observeAll()
 
     override suspend fun getTrip(id: String): TripEntity? = tripDao.getById(id)
+
+    override suspend fun getTripsByStatus(status: TripStatus): List<TripEntity> = tripDao.getByStatus(status)
 
     override suspend fun saveTrip(trip: TripEntity) {
         if (tripDao.getById(trip.id) == null) {

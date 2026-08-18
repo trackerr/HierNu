@@ -13,7 +13,7 @@ import nl.hiertoen.app.core.GeoMath
  * Puur Kotlin, geen Android-afhankelijkheden — zo blijft dit met synthetische snelheidsreeksen
  * te testen zonder emulator (§14.1, §17.3: deterministische fixtures).
  */
-class MotionStateEngine(private val thresholds: MotionThresholds = MotionThresholds.CAR) {
+class MotionStateEngine(val thresholds: MotionThresholds = MotionThresholds.CAR) {
 
     private val _state = MutableStateFlow(MotionState.IDLE)
     val state: StateFlow<MotionState> = _state
