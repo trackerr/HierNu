@@ -14,7 +14,7 @@ Bouwvolgorde uit spec §17.1:
 - [x] Stap 3 — Foreground TrackingService en actieve-rit UI
 - [x] Stap 4 — MotionStateEngine met configureerbare drempels
 - [x] Stap 5 — "Deze plek bewaren" en TripMoment
-- [ ] Stap 6 — WikimediaSource en kandidaatselectie
+- [x] Stap 6 — WikimediaSource en kandidaatselectie
 - [ ] Stap 7 — Veilige fotoweergave
 - [ ] Stap 8 — Route review en exports
 - [ ] Stap 9 — Settings, privacy en fouttoestanden
@@ -56,6 +56,7 @@ app/src/main/java/nl/hiertoen/app/
 ├── HierToenApp.kt
 ├── core/                # ActivityType, GeoMath (gedeeld)
 ├── motion/              # MotionStateEngine — statusmachine §5, puur Kotlin/testbaar
+├── photos/              # WikimediaClient, kandidatenscoring §7, PhotoSearchService
 ├── tracking/            # TrackingService (foreground), validatie, adaptieve opslag §6
 ├── ui/
 │   ├── theme/            # Donker, zwart met oranje accent — §1.3
@@ -88,6 +89,9 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
 - `TrackingService` herstelt zichzelf niet automatisch na een door het OS geforceerde
   processtop; een onderbroken rit wordt bij de volgende koude start herkend als RECOVERABLE
   (§6.4), maar de foreground service moet dan opnieuw gestart worden vanuit de UI.
-- "Deze plek bewaren" slaat een moment altijd op met status `NO_IMAGE_YET` — de beeldzoekopdracht
-  volgt in stap 6.
 - Ritdetail toont nog geen kaart/route, alleen de samenvatting en de momentenlijst (komt in stap 8).
+- Alleen Wikimedia Commons als beeldbron (§7.1 rang 2); gecureerde archieffoto's (rang 1),
+  Mapillary en Google Street View zijn Fase 2 (§2.2).
+- De fotoweergave zelf (het beeld daadwerkelijk tonen tijdens de rit, met de garantie dat het
+  nooit verschijnt tijdens beweging) is stap 7 — tot dan is een gevonden foto alleen zichtbaar
+  in het ritdetail, niet op het rijscherm.

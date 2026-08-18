@@ -1,9 +1,11 @@
 package nl.hiertoen.app.data.repository
 
 import kotlinx.coroutines.flow.Flow
+import nl.hiertoen.app.data.local.dao.PhotoCandidateDao
 import nl.hiertoen.app.data.local.dao.TrackPointDao
 import nl.hiertoen.app.data.local.dao.TripDao
 import nl.hiertoen.app.data.local.dao.TripMomentDao
+import nl.hiertoen.app.data.local.entity.PhotoCandidateEntity
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TripEntity
 import nl.hiertoen.app.data.local.entity.TripMomentEntity
@@ -13,6 +15,7 @@ class TripRepositoryImpl(
     private val tripDao: TripDao,
     private val trackPointDao: TrackPointDao,
     private val tripMomentDao: TripMomentDao,
+    private val photoCandidateDao: PhotoCandidateDao,
 ) : TripRepository {
     override fun observeTrips(): Flow<List<TripEntity>> = tripDao.observeAll()
 
@@ -46,4 +49,12 @@ class TripRepositoryImpl(
             tripMomentDao.update(moment)
         }
     }
+
+    override fun observeCandidates(momentId: String): Flow<List<PhotoCandidateEntity>> =
+        photoCandidateDao.observeForMoment(momentId)
+
+    override suspend fun getBestCandidate(momentId: String): PhotoCandidateEntity? =
+        photoCandidateDao.getBestForMoment(momentId)
+
+    override suspend fun saveCandidates(candidates: List<PhotoCandidateEntity>) = photoCandidateDao.insertAll(candidates)
 }

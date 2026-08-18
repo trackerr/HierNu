@@ -51,6 +51,8 @@ import nl.hiertoen.app.motion.MotionInput
 import nl.hiertoen.app.motion.MotionState
 import nl.hiertoen.app.motion.MotionStateEngine
 import nl.hiertoen.app.motion.MotionThresholds
+import nl.hiertoen.app.photos.PhotoSearchService
+import nl.hiertoen.app.photos.WikimediaHttpClient
 import java.util.UUID
 
 /**
@@ -74,6 +76,7 @@ class TrackingService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     private lateinit var repository: TripRepository
+    private lateinit var photoSearchService: PhotoSearchService
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var activityRecognitionClient: ActivityRecognitionClient
 
@@ -107,10 +110,12 @@ class TrackingService : Service() {
     private var lastPersistedLat: Double? = null
     private var lastPersistedLon: Double? = null
     private var stillPersistedForCurrentStop: Boolean = false
+    private var autoStopMomentTriggered: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
         repository = RepositoryFactory.tripRepository(this)
+        photoSearchService = PhotoSearchService(WikimediaHttpClient(), repository)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         activityRecognitionClient = ActivityRecognition.getClient(this)
         TrackingNotifications.ensureChannel(this)
@@ -222,31 +227,62 @@ class TrackingService : Service() {
     }
 
     /**
-     * "Deze plek bewaren" — §3.5. Legt de laatst bekende positie vast als [TripMomentEntity];
-     * de daadwerkelijke beeldzoekopdracht volgt in stap 6, dus het moment start altijd op
-     * NO_IMAGE_YET (het pad "geen resultaat" uit de hoofdstroom in §3.5).
+     * "Deze plek bewaren" — §3.5. Legt de laatst bekende positie vast als [TripMomentEntity]
+     * en start meteen de beeldzoekopdracht (§7); het moment begint op NO_IMAGE_YET totdat
+     * [PhotoSearchService] de status bijwerkt.
      */
     suspend fun saveCurrentPlace(): Boolean {
         val tripId = currentTripId ?: return false
         val lat = lastKnownLat ?: return false
         val lon = lastKnownLon ?: return false
 
-        repository.saveMoment(
-            TripMomentEntity(
-                id = UUID.randomUUID().toString(),
-                tripId = tripId,
-                timestamp = System.currentTimeMillis(),
-                lat = lat,
-                lon = lon,
-                bearingDeg = lastKnownBearingDeg,
-                accuracyM = lastKnownAccuracyM ?: Float.MAX_VALUE,
-                type = MomentType.MANUAL_BOOKMARK,
-                source = null,
-                state = MomentState.NO_IMAGE_YET,
-                note = null,
-            ),
+        val moment = TripMomentEntity(
+            id = UUID.randomUUID().toString(),
+            tripId = tripId,
+            timestamp = System.currentTimeMillis(),
+            lat = lat,
+            lon = lon,
+            bearingDeg = lastKnownBearingDeg,
+            accuracyM = lastKnownAccuracyM ?: Float.MAX_VALUE,
+            type = MomentType.MANUAL_BOOKMARK,
+            source = null,
+            state = MomentState.NO_IMAGE_YET,
+            note = null,
         )
+        repository.saveMoment(moment)
+        // Niet awaiten: "Plek bewaard" mag meteen bevestigd worden, de zoekopdracht loopt door (§3.5).
+        serviceScope.launch { photoSearchService.searchForMoment(moment) }
         return true
+    }
+
+    /** MVP-05: automatisch een historische foto zoeken zodra een stop bevestigd is — precies één keer per stop. */
+    private fun maybeTriggerAutoStopSearch(tripId: String, motionState: MotionState) {
+        if (motionState != MotionState.STILL) {
+            autoStopMomentTriggered = false
+            return
+        }
+        if (autoStopMomentTriggered) return
+        autoStopMomentTriggered = true
+
+        val lat = lastKnownLat ?: return
+        val lon = lastKnownLon ?: return
+        val moment = TripMomentEntity(
+            id = UUID.randomUUID().toString(),
+            tripId = tripId,
+            timestamp = System.currentTimeMillis(),
+            lat = lat,
+            lon = lon,
+            bearingDeg = lastKnownBearingDeg,
+            accuracyM = lastKnownAccuracyM ?: Float.MAX_VALUE,
+            type = MomentType.AUTO_STOP,
+            source = null,
+            state = MomentState.NO_IMAGE_YET,
+            note = null,
+        )
+        serviceScope.launch {
+            repository.saveMoment(moment)
+            photoSearchService.searchForMoment(moment)
+        }
     }
 
     private fun persistStatus(tripId: String, status: TripStatus) {
@@ -279,6 +315,7 @@ class TrackingService : Service() {
         lastPersistedLat = null
         lastPersistedLon = null
         stillPersistedForCurrentStop = false
+        autoStopMomentTriggered = false
     }
 
     // --- Locatie ---
@@ -332,6 +369,7 @@ class TrackingService : Service() {
         lastProcessedTimestamp = timestamp
 
         maybePersist(tripId, location, timestamp, accuracyM, motionState)
+        maybeTriggerAutoStopSearch(tripId, motionState)
 
         publishState()
         updateNotification()

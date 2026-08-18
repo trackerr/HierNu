@@ -2,6 +2,7 @@ package nl.hiertoen.app.data.local
 
 import androidx.room.TypeConverter
 import nl.hiertoen.app.core.ActivityType
+import nl.hiertoen.app.data.local.entity.CachePolicy
 import nl.hiertoen.app.data.local.entity.MomentState
 import nl.hiertoen.app.data.local.entity.MomentType
 import nl.hiertoen.app.data.local.entity.TrackPointValidity
@@ -48,4 +49,10 @@ class HierToenTypeConverters {
 
     @TypeConverter
     fun toMomentState(value: String): MomentState = MomentState.valueOf(value)
+
+    @TypeConverter
+    fun fromCachePolicy(value: CachePolicy): String = value.name
+
+    @TypeConverter
+    fun toCachePolicy(value: String): CachePolicy = CachePolicy.valueOf(value)
 }

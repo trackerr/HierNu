@@ -1,6 +1,7 @@
 package nl.hiertoen.app.data.repository
 
 import kotlinx.coroutines.flow.Flow
+import nl.hiertoen.app.data.local.entity.PhotoCandidateEntity
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TripEntity
 import nl.hiertoen.app.data.local.entity.TripMomentEntity
@@ -23,4 +24,8 @@ interface TripRepository {
 
     fun observeMoments(tripId: String): Flow<List<TripMomentEntity>>
     suspend fun saveMoment(moment: TripMomentEntity)
+
+    fun observeCandidates(momentId: String): Flow<List<PhotoCandidateEntity>>
+    suspend fun getBestCandidate(momentId: String): PhotoCandidateEntity?
+    suspend fun saveCandidates(candidates: List<PhotoCandidateEntity>)
 }

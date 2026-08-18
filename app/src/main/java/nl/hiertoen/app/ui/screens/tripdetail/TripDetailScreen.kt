@@ -31,6 +31,7 @@ import nl.hiertoen.app.data.local.entity.MomentType
 import nl.hiertoen.app.data.local.entity.TripEntity
 import nl.hiertoen.app.data.local.entity.TripMomentEntity
 import nl.hiertoen.app.data.repository.RepositoryFactory
+import nl.hiertoen.app.data.repository.TripRepository
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -75,7 +76,7 @@ fun TripDetailScreen(tripId: String, onBack: () -> Unit) {
                 item { Text("Nog geen momenten opgeslagen.", style = MaterialTheme.typography.bodyLarge) }
             } else {
                 items(moments) { moment ->
-                    MomentRow(moment)
+                    MomentRow(moment, repository)
                     HorizontalDivider()
                 }
             }
@@ -110,18 +111,31 @@ private fun SummaryStat(label: String, value: String) {
 }
 
 @Composable
-private fun MomentRow(moment: TripMomentEntity) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Column {
-            Text(text = momentTypeLabel(moment.type), style = MaterialTheme.typography.titleLarge)
-            Text(text = formatTime(moment.timestamp), style = MaterialTheme.typography.bodyMedium)
+private fun MomentRow(moment: TripMomentEntity, repository: TripRepository) {
+    val candidates by repository.observeCandidates(moment.id).collectAsState(initial = emptyList())
+    val best = candidates.maxByOrNull { it.score }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text(text = momentTypeLabel(moment.type), style = MaterialTheme.typography.titleLarge)
+                Text(text = formatTime(moment.timestamp), style = MaterialTheme.typography.bodyMedium)
+            }
+            Text(text = momentStateLabel(moment.state), style = MaterialTheme.typography.bodyMedium)
         }
-        Text(text = momentStateLabel(moment.state), style = MaterialTheme.typography.bodyMedium)
+        // Stopcriterium §17.1 stap 6: bron, jaar en licentie zichtbaar.
+        if (moment.state == MomentState.PHOTO_SHOWN && best != null) {
+            Text(
+                text = "${best.title} — ${yearLabel(best.yearFrom)} — ${best.license ?: "onbekende licentie"}",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(text = best.attribution, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
+
+private fun yearLabel(year: Int?): String = year?.toString() ?: "datum onbekend"
 
 private fun momentTypeLabel(type: MomentType): String = when (type) {
     MomentType.MANUAL_BOOKMARK -> "Handmatig bewaard"

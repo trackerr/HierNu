@@ -11,6 +11,11 @@ import nl.hiertoen.app.data.local.HierToenDatabase
 object RepositoryFactory {
     fun tripRepository(context: Context): TripRepository {
         val database = HierToenDatabase.getInstance(context)
-        return TripRepositoryImpl(database.tripDao(), database.trackPointDao(), database.tripMomentDao())
+        return TripRepositoryImpl(
+            database.tripDao(),
+            database.trackPointDao(),
+            database.tripMomentDao(),
+            database.photoCandidateDao(),
+        )
     }
 }

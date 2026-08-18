@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Foreground-service melding op relevante Android-versies (§12.4). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Beeldbronnen en metadata (§12.4) — vanaf stap 6 (Wikimedia Commons). -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".HierToenApp"
