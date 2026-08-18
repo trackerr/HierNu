@@ -1,7 +1,7 @@
 package nl.hiertoen.app.data.local
 
 import androidx.room.TypeConverter
-import nl.hiertoen.app.data.local.entity.ActivityType
+import nl.hiertoen.app.core.ActivityType
 import nl.hiertoen.app.data.local.entity.TrackPointValidity
 import nl.hiertoen.app.data.local.entity.TripMode
 import nl.hiertoen.app.data.local.entity.TripStatus

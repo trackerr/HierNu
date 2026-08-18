@@ -1,6 +1,6 @@
 package nl.hiertoen.app.data.local
 
-import nl.hiertoen.app.data.local.entity.ActivityType
+import nl.hiertoen.app.core.ActivityType
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TrackPointValidity
 import nl.hiertoen.app.data.local.entity.TripEntity

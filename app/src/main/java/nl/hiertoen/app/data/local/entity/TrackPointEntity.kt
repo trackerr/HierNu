@@ -4,15 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-
-/** Activity Recognition-resultaat op het moment van het trackpunt, zie §5. */
-enum class ActivityType {
-    IN_VEHICLE,
-    ON_BICYCLE,
-    WALKING,
-    STILL,
-    UNKNOWN,
-}
+import nl.hiertoen.app.core.ActivityType
 
 /**
  * Geldigheid van een trackpunt voor afstandsberekening — §6.2/§6.3: punten met slechte
