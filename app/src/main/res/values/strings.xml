@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HierToen</string>
+    <string name="tagline">Rij. Stop. Kijk terug.</string>
+
+    <string name="start_screen_start_trip">Start rit</string>
+    <string name="start_screen_previous_trips">Eerdere ritten</string>
+    <string name="start_screen_settings">Instellingen</string>
+
+    <string name="trips_screen_title">Eerdere ritten</string>
+    <string name="trips_screen_empty">Nog geen ritten geregistreerd.</string>
+
+    <string name="settings_screen_title">Instellingen</string>
+    <string name="settings_screen_empty">Nog geen instellingen beschikbaar.</string>
+</resources>
