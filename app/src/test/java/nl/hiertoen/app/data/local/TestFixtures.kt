@@ -1,10 +1,13 @@
 package nl.hiertoen.app.data.local
 
 import nl.hiertoen.app.core.ActivityType
+import nl.hiertoen.app.data.local.entity.MomentState
+import nl.hiertoen.app.data.local.entity.MomentType
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TrackPointValidity
 import nl.hiertoen.app.data.local.entity.TripEntity
 import nl.hiertoen.app.data.local.entity.TripMode
+import nl.hiertoen.app.data.local.entity.TripMomentEntity
 import nl.hiertoen.app.data.local.entity.TripStatus
 
 /** Deterministische fixtures — geen `Date()`/willekeurige waarden, zodat tests reproduceerbaar zijn. */
@@ -48,5 +51,25 @@ object TestFixtures {
         activityType = ActivityType.IN_VEHICLE,
         segmentIndex = 0,
         validity = validity,
+    )
+
+    fun tripMoment(
+        id: String,
+        tripId: String = "trip-1",
+        timestamp: Long = 1_000L,
+        type: MomentType = MomentType.MANUAL_BOOKMARK,
+        state: MomentState = MomentState.NO_IMAGE_YET,
+    ) = TripMomentEntity(
+        id = id,
+        tripId = tripId,
+        timestamp = timestamp,
+        lat = 52.2215,
+        lon = 6.8937,
+        bearingDeg = 90f,
+        accuracyM = 10f,
+        type = type,
+        source = null,
+        state = state,
+        note = null,
     )
 }

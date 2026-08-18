@@ -37,14 +37,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import nl.hiertoen.app.core.ActivityType
 import nl.hiertoen.app.core.GeoMath
-import nl.hiertoen.app.data.local.HierToenDatabase
+import nl.hiertoen.app.data.local.entity.MomentState
+import nl.hiertoen.app.data.local.entity.MomentType
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TrackPointValidity
 import nl.hiertoen.app.data.local.entity.TripEntity
 import nl.hiertoen.app.data.local.entity.TripMode
+import nl.hiertoen.app.data.local.entity.TripMomentEntity
 import nl.hiertoen.app.data.local.entity.TripStatus
+import nl.hiertoen.app.data.repository.RepositoryFactory
 import nl.hiertoen.app.data.repository.TripRepository
-import nl.hiertoen.app.data.repository.TripRepositoryImpl
 import nl.hiertoen.app.motion.MotionInput
 import nl.hiertoen.app.motion.MotionState
 import nl.hiertoen.app.motion.MotionStateEngine
@@ -94,6 +96,10 @@ class TrackingService : Service() {
     private var currentSpeedKmh: Double = 0.0
     private var segmentIndex: Int = 0
     private var lastActivityType: ActivityType = ActivityType.UNKNOWN
+    private var lastKnownLat: Double? = null
+    private var lastKnownLon: Double? = null
+    private var lastKnownBearingDeg: Float? = null
+    private var lastKnownAccuracyM: Float? = null
 
     private var lastProcessedTimestamp: Long? = null
     private var lastValidPoint: TrackPointEntity? = null
@@ -104,8 +110,7 @@ class TrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val database = HierToenDatabase.getInstance(this)
-        repository = TripRepositoryImpl(database.tripDao(), database.trackPointDao())
+        repository = RepositoryFactory.tripRepository(this)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         activityRecognitionClient = ActivityRecognition.getClient(this)
         TrackingNotifications.ensureChannel(this)
@@ -216,6 +221,34 @@ class TrackingService : Service() {
         stopSelf()
     }
 
+    /**
+     * "Deze plek bewaren" — §3.5. Legt de laatst bekende positie vast als [TripMomentEntity];
+     * de daadwerkelijke beeldzoekopdracht volgt in stap 6, dus het moment start altijd op
+     * NO_IMAGE_YET (het pad "geen resultaat" uit de hoofdstroom in §3.5).
+     */
+    suspend fun saveCurrentPlace(): Boolean {
+        val tripId = currentTripId ?: return false
+        val lat = lastKnownLat ?: return false
+        val lon = lastKnownLon ?: return false
+
+        repository.saveMoment(
+            TripMomentEntity(
+                id = UUID.randomUUID().toString(),
+                tripId = tripId,
+                timestamp = System.currentTimeMillis(),
+                lat = lat,
+                lon = lon,
+                bearingDeg = lastKnownBearingDeg,
+                accuracyM = lastKnownAccuracyM ?: Float.MAX_VALUE,
+                type = MomentType.MANUAL_BOOKMARK,
+                source = null,
+                state = MomentState.NO_IMAGE_YET,
+                note = null,
+            ),
+        )
+        return true
+    }
+
     private fun persistStatus(tripId: String, status: TripStatus) {
         serviceScope.launch {
             repository.getTrip(tripId)?.let { repository.saveTrip(it.copy(status = status)) }
@@ -236,6 +269,10 @@ class TrackingService : Service() {
         currentSpeedKmh = 0.0
         segmentIndex = 0
         lastActivityType = ActivityType.UNKNOWN
+        lastKnownLat = null
+        lastKnownLon = null
+        lastKnownBearingDeg = null
+        lastKnownAccuracyM = null
         lastProcessedTimestamp = null
         lastValidPoint = null
         lastPersistedAt = null
@@ -285,6 +322,11 @@ class TrackingService : Service() {
         currentSpeedKmh = speedKmh
         if (speedKmh > maxSpeedKmh) maxSpeedKmh = speedKmh
         if (motionState != MotionState.STILL) stillPersistedForCurrentStop = false
+
+        lastKnownLat = location.latitude
+        lastKnownLon = location.longitude
+        lastKnownBearingDeg = if (location.hasBearing()) location.bearing else null
+        lastKnownAccuracyM = accuracyM.toFloat()
 
         attributeElapsedTime(timestamp, motionState)
         lastProcessedTimestamp = timestamp

@@ -11,14 +11,15 @@ Bouwvolgorde uit spec §17.1:
 
 - [x] Stap 1 — Project, thema, navigatie, basis-README
 - [x] Stap 2 — Room-schema en Trip/TrackPoint repositories
-- [ ] Stap 3 — Foreground TrackingService en actieve-rit UI
-- [ ] Stap 4 — MotionStateEngine met configureerbare drempels
-- [ ] Stap 5 — "Deze plek bewaren" en TripMoment
+- [x] Stap 3 — Foreground TrackingService en actieve-rit UI
+- [x] Stap 4 — MotionStateEngine met configureerbare drempels
+- [x] Stap 5 — "Deze plek bewaren" en TripMoment
 - [ ] Stap 6 — WikimediaSource en kandidaatselectie
 - [ ] Stap 7 — Veilige fotoweergave
 - [ ] Stap 8 — Route review en exports
 - [ ] Stap 9 — Settings, privacy en fouttoestanden
-- [ ] Stap 10 — APK en veldtestpakket
+- [ ] Stap 10 — APK en veldtestpakket (vereist een fysiek toestel en een echte rit — buiten
+      wat in deze omgeving uitgevoerd kan worden)
 
 ## Bouwen
 
@@ -34,7 +35,8 @@ push. Zie de Actions-tab van de repository voor de laatste build- en teststatus.
    geïnstalleerde Gradle: `gradle wrapper`.
 3. Sync het project; de Android Gradle Plugin downloadt de benodigde SDK-platformen
    automatisch (compileSdk/targetSdk 35, minSdk 28).
-4. Run op een emulator of fysiek toestel (Run ▸ app).
+4. Run op een emulator of fysiek toestel (Run ▸ app). Voor ritregistratie is een fysiek
+   toestel met echte GPS nodig — een emulator kan dit met een gesimuleerde route benaderen.
 
 ### Command line (met lokale Gradle- en SDK-installatie)
 
@@ -52,19 +54,26 @@ Zie spec §9.3 voor de module-indeling. Tot nu toe geïmplementeerd:
 app/src/main/java/nl/hiertoen/app/
 ├── MainActivity.kt
 ├── HierToenApp.kt
+├── core/                # ActivityType, GeoMath (gedeeld)
+├── motion/              # MotionStateEngine — statusmachine §5, puur Kotlin/testbaar
+├── tracking/            # TrackingService (foreground), validatie, adaptieve opslag §6
 ├── ui/
-│   ├── theme/          # Donker, zwart met oranje accent — §1.3
-│   ├── navigation/      # Start / Trips / Settings
-│   └── screens/         # Placeholder-schermen per §4.1
+│   ├── theme/            # Donker, zwart met oranje accent — §1.3
+│   ├── navigation/       # Start / Trips / TripDetail / ActiveTrip / Settings
+│   ├── permissions/      # Runtime-toestemmingen, aangevraagd bij "Start rit" — §12.4
+│   └── screens/          # Start, actieve rit (rijscherm), ritdetail, instellingen
 └── data/
-    ├── local/           # Room: Trip- en TrackPoint-entiteiten, DAO's, database — §10.1
-    └── repository/      # TripRepository tussen Room en de rest van de app
+    ├── local/            # Room: Trip/TrackPoint/TripMoment, DAO's, database, migraties
+    └── repository/       # TripRepository tussen Room en de rest van de app
 ```
 
 ## Testen
 
-Room-DAO-tests draaien als JVM-unit tests via Robolectric (`app/src/test/...`), zodat ze
-zonder emulator werken — zowel lokaal (`./gradlew testDebugUnitTest`) als in CI.
+Room-DAO-tests en de MotionStateEngine-tests draaien als JVM-unit tests (Robolectric voor de
+Room-tests, gewone JUnit voor de statusmachine en de validatie-/opslaglogica), zodat ze zonder
+emulator werken — zowel lokaal (`./gradlew testDebugUnitTest`) als in CI. `TrackingService`
+zelf (foreground service + Play Services locatie/activity-API's) heeft geen geautomatiseerde
+test — dat vereist een emulator of fysiek toestel en hoort bij de veldtest in stap 10.
 
 ## Signing / release
 
@@ -76,5 +85,9 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
 
 - `gradle-wrapper.jar` is niet meegecommit (binair bestand); wordt gegenereerd door Android
   Studio of door `gradle wrapper` te draaien.
-- Geen toestemmingen (locatie, activity recognition) in het manifest — die horen bij stap 3.
-- Geen echte databron; schermen tonen placeholder-teksten.
+- `TrackingService` herstelt zichzelf niet automatisch na een door het OS geforceerde
+  processtop; een onderbroken rit wordt bij de volgende koude start herkend als RECOVERABLE
+  (§6.4), maar de foreground service moet dan opnieuw gestart worden vanuit de UI.
+- "Deze plek bewaren" slaat een moment altijd op met status `NO_IMAGE_YET` — de beeldzoekopdracht
+  volgt in stap 6.
+- Ritdetail toont nog geen kaart/route, alleen de samenvatting en de momentenlijst (komt in stap 8).

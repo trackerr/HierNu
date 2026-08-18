@@ -11,6 +11,7 @@ import nl.hiertoen.app.data.local.entity.TripMode
 import nl.hiertoen.app.ui.screens.activetrip.ActiveTripScreen
 import nl.hiertoen.app.ui.screens.settings.SettingsScreen
 import nl.hiertoen.app.ui.screens.start.StartScreen
+import nl.hiertoen.app.ui.screens.tripdetail.TripDetailScreen
 import nl.hiertoen.app.ui.screens.trips.TripsScreen
 
 @Composable
@@ -24,7 +25,10 @@ fun HierToenNavHost(navController: NavHostController = rememberNavController()) 
             )
         }
         composable(HierToenDestination.Trips.route) {
-            TripsScreen(onBack = { navController.popBackStack() })
+            TripsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenTrip = { tripId -> navController.navigate(HierToenDestination.TripDetail.routeFor(tripId)) },
+            )
         }
         composable(HierToenDestination.Settings.route) {
             SettingsScreen(onBack = { navController.popBackStack() })
@@ -41,6 +45,15 @@ fun HierToenNavHost(navController: NavHostController = rememberNavController()) 
                     navController.popBackStack(HierToenDestination.Start.route, inclusive = false)
                 },
             )
+        }
+        composable(
+            route = HierToenDestination.TripDetail.route,
+            arguments = listOf(navArgument(HierToenDestination.TripDetail.ARG_TRIP_ID) { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString(HierToenDestination.TripDetail.ARG_TRIP_ID)
+            if (tripId != null) {
+                TripDetailScreen(tripId = tripId, onBack = { navController.popBackStack() })
+            }
         }
     }
 }

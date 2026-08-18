@@ -30,6 +30,7 @@ class TrackingServiceHandle internal constructor(private val context: Context) {
     fun pause() = bound?.pauseTrip()
     fun resume() = bound?.resumeTrip()
     fun stop() = bound?.stopTrip()
+    suspend fun saveCurrentPlace(): Boolean = bound?.saveCurrentPlace() ?: false
 
     internal fun attach(service: TrackingService, mode: TripMode) {
         bound = service

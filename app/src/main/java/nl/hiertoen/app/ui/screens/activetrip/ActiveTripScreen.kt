@@ -14,17 +14,21 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import nl.hiertoen.app.R
 import nl.hiertoen.app.data.local.entity.TripMode
 import nl.hiertoen.app.data.local.entity.TripStatus
@@ -43,8 +47,12 @@ fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit) {
     val session = sessionState.value
 
     var showStopConfirm by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val savedMessage = stringResource(R.string.active_trip_place_saved)
+    val notSavedMessage = stringResource(R.string.active_trip_place_not_saved)
 
-    Scaffold { padding ->
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -63,7 +71,12 @@ fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit) {
 
             Column(modifier = Modifier.fillMaxWidth()) {
                 Button(
-                    onClick = { /* "Deze plek bewaren" volgt in stap 5 (TripMoment). */ },
+                    onClick = {
+                        coroutineScope.launch {
+                            val saved = handle.saveCurrentPlace()
+                            snackbarHostState.showSnackbar(if (saved) savedMessage else notSavedMessage)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().height(72.dp),
                 ) {
                     Text(stringResource(R.string.active_trip_save_place), style = MaterialTheme.typography.titleLarge)

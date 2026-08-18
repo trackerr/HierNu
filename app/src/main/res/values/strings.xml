@@ -17,6 +17,8 @@
     <string name="tracking_notification_title">HierToen — rit actief</string>
 
     <string name="active_trip_save_place">Deze plek bewaren</string>
+    <string name="active_trip_place_saved">Plek bewaard</string>
+    <string name="active_trip_place_not_saved">Nog geen locatie bekend, probeer straks opnieuw</string>
     <string name="active_trip_pause">Pauzeren</string>
     <string name="active_trip_resume">Hervatten</string>
     <string name="active_trip_stop">Rit beëindigen</string>

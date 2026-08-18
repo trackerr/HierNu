@@ -3,13 +3,16 @@ package nl.hiertoen.app.data.repository
 import kotlinx.coroutines.flow.Flow
 import nl.hiertoen.app.data.local.dao.TrackPointDao
 import nl.hiertoen.app.data.local.dao.TripDao
+import nl.hiertoen.app.data.local.dao.TripMomentDao
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TripEntity
+import nl.hiertoen.app.data.local.entity.TripMomentEntity
 import nl.hiertoen.app.data.local.entity.TripStatus
 
 class TripRepositoryImpl(
     private val tripDao: TripDao,
     private val trackPointDao: TrackPointDao,
+    private val tripMomentDao: TripMomentDao,
 ) : TripRepository {
     override fun observeTrips(): Flow<List<TripEntity>> = tripDao.observeAll()
 
@@ -33,4 +36,14 @@ class TripRepositoryImpl(
     override suspend fun appendTrackPoint(point: TrackPointEntity) = trackPointDao.insert(point)
 
     override suspend fun appendTrackPoints(points: List<TrackPointEntity>) = trackPointDao.insertAll(points)
+
+    override fun observeMoments(tripId: String): Flow<List<TripMomentEntity>> = tripMomentDao.observeForTrip(tripId)
+
+    override suspend fun saveMoment(moment: TripMomentEntity) {
+        if (tripMomentDao.getById(moment.id) == null) {
+            tripMomentDao.insert(moment)
+        } else {
+            tripMomentDao.update(moment)
+        }
+    }
 }

@@ -15,4 +15,9 @@ sealed class HierToenDestination(val route: String) {
         const val ARG_MODE = "mode"
         fun routeFor(mode: TripMode) = "activeTrip/${mode.name}"
     }
+
+    data object TripDetail : HierToenDestination("trips/{tripId}") {
+        const val ARG_TRIP_ID = "tripId"
+        fun routeFor(tripId: String) = "trips/$tripId"
+    }
 }

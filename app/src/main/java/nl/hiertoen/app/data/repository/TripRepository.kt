@@ -3,10 +3,11 @@ package nl.hiertoen.app.data.repository
 import kotlinx.coroutines.flow.Flow
 import nl.hiertoen.app.data.local.entity.TrackPointEntity
 import nl.hiertoen.app.data.local.entity.TripEntity
+import nl.hiertoen.app.data.local.entity.TripMomentEntity
 import nl.hiertoen.app.data.local.entity.TripStatus
 
 /**
- * Toegang tot ritten en trackpunten. Zit tussen de Room-laag en de rest van de app
+ * Toegang tot ritten, trackpunten en momenten. Zit tussen de Room-laag en de rest van de app
  * (motion engine, UI, export) zodat die niet rechtstreeks van Room-DAO's afhangen — §9.3.
  */
 interface TripRepository {
@@ -19,4 +20,7 @@ interface TripRepository {
     fun observeTrackPoints(tripId: String): Flow<List<TrackPointEntity>>
     suspend fun appendTrackPoint(point: TrackPointEntity)
     suspend fun appendTrackPoints(points: List<TrackPointEntity>)
+
+    fun observeMoments(tripId: String): Flow<List<TripMomentEntity>>
+    suspend fun saveMoment(moment: TripMomentEntity)
 }
