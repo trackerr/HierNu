@@ -18,14 +18,16 @@ Bouwvolgorde uit spec §17.1:
 - [x] Stap 7 — Veilige fotoweergave
 - [x] Stap 8 — Route review en exports
 - [x] Stap 9 — Settings, privacy en fouttoestanden
-- [ ] Stap 10 — APK en veldtestpakket (vereist een fysiek toestel en een echte rit — buiten
-      wat in deze omgeving uitgevoerd kan worden)
+- [~] Stap 10 — APK en veldtestpakket: elke CI-run publiceert nu een debug-APK als build-
+      artefact (`hiertoen-debug-apk`, 30 dagen bewaard); de echte veldtest met een fysiek
+      toestel is aan degene die de app installeert, niet iets wat in deze omgeving kan.
 
 ## Bouwen
 
 Er is in deze omgeving geen lokale Android SDK/Gradle-installatie beschikbaar; de build en
 tests worden geverifieerd via GitHub Actions (`.github/workflows/android-ci.yml`) bij elke
-push. Zie de Actions-tab van de repository voor de laatste build- en teststatus.
+push. Zie de Actions-tab van de repository voor de laatste build- en teststatus, en het
+tabblad "Artifacts" van een geslaagde run voor de installeerbare debug-APK.
 
 ### Lokaal openen (Android Studio)
 

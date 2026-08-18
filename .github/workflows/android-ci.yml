@@ -36,6 +36,13 @@ jobs:
       - name: Unit tests (incl. Room/Robolectric)
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      - name: Upload debug-APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hiertoen-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
       - name: Upload testrapport bij falen
         if: failure()
         uses: actions/upload-artifact@v4
