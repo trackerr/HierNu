@@ -1,6 +1,9 @@
 package nl.hiertoen.app.ui.screens.activetrip
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,20 +29,27 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
 import nl.hiertoen.app.R
 import nl.hiertoen.app.data.local.entity.TripMode
 import nl.hiertoen.app.data.local.entity.TripStatus
 import nl.hiertoen.app.motion.MotionState
+import nl.hiertoen.app.tracking.DisplayedPhotoInfo
 import nl.hiertoen.app.tracking.TrackingSessionState
 import java.util.Locale
 
 /**
- * Rijscherm — §4.2. Rustig tijdens beweging: geen foto (volgt in stap 7), geen complexe
- * bediening. "Deze plek bewaren" is altijd bereikbaar; pauzeren/stoppen is beperkt tijdens
- * beweging en vraagt bevestiging bij stilstand, conform §4.2 en §12.3.
+ * Rijscherm — §4.2. Rustig tijdens beweging: geen foto, geen complexe bediening. Zodra
+ * TrackingService een foto vrijgeeft (alleen bij STILL, §12.3) verschijnt de fotoweergave
+ * (§4.3) als overlay; ze sluit zonder animatie of bevestiging zodra beweging hervat — de
+ * StateFlow-update van de service is daarvoor voldoende, deze compositie voegt zelf geen
+ * animatie toe.
  */
 @Composable
 fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit) {
@@ -53,60 +63,68 @@ fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit) {
     val notSavedMessage = stringResource(R.string.active_trip_place_not_saved)
 
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            when (session) {
-                is TrackingSessionState.Active -> ActiveTripContent(session)
-                TrackingSessionState.NoActiveTrip -> Text(
-                    text = "Rit wordt gestart…",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                when (session) {
+                    is TrackingSessionState.Active -> ActiveTripContent(session)
+                    TrackingSessionState.NoActiveTrip -> Text(
+                        text = "Rit wordt gestart…",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                val saved = handle.saveCurrentPlace()
+                                snackbarHostState.showSnackbar(if (saved) savedMessage else notSavedMessage)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(72.dp),
+                    ) {
+                        Text(stringResource(R.string.active_trip_save_place), style = MaterialTheme.typography.titleLarge)
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                        val controlsEnabled = (session as? TrackingSessionState.Active)?.motionState?.let {
+                            it != MotionState.MOVING && it != MotionState.SLOW
+                        } ?: true
+
+                        val isPaused = (session as? TrackingSessionState.Active)?.status == TripStatus.PAUSED
+
+                        OutlinedButton(
+                            enabled = controlsEnabled,
+                            onClick = { if (isPaused) handle.resume() else handle.pause() },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(if (isPaused) R.string.active_trip_resume else R.string.active_trip_pause))
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        OutlinedButton(
+                            enabled = controlsEnabled,
+                            onClick = { showStopConfirm = true },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.active_trip_stop))
+                        }
+                    }
+                }
             }
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            val saved = handle.saveCurrentPlace()
-                            snackbarHostState.showSnackbar(if (saved) savedMessage else notSavedMessage)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(72.dp),
-                ) {
-                    Text(stringResource(R.string.active_trip_save_place), style = MaterialTheme.typography.titleLarge)
-                }
-
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                    val controlsEnabled = (session as? TrackingSessionState.Active)?.motionState?.let {
-                        it != MotionState.MOVING && it != MotionState.SLOW
-                    } ?: true
-
-                    val isPaused = (session as? TrackingSessionState.Active)?.status == TripStatus.PAUSED
-
-                    OutlinedButton(
-                        enabled = controlsEnabled,
-                        onClick = { if (isPaused) handle.resume() else handle.pause() },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(stringResource(if (isPaused) R.string.active_trip_resume else R.string.active_trip_pause))
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    OutlinedButton(
-                        enabled = controlsEnabled,
-                        onClick = { showStopConfirm = true },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(stringResource(R.string.active_trip_stop))
-                    }
-                }
+            // Alleen op de voorgrond wanneer de service 'm doorlaat (STILL) — geen eigen
+            // AnimatedVisibility hier, dat zou de "geen animatie bij hervatte beweging"-eis breken.
+            val photo = (session as? TrackingSessionState.Active)?.displayedPhoto
+            if (photo != null) {
+                PhotoOverlay(photo)
             }
         }
     }
@@ -152,6 +170,41 @@ private fun ActiveTripContent(session: TrackingSessionState.Active) {
                 Text(text = formatDuration(session.elapsedMs), style = MaterialTheme.typography.titleLarge)
                 Text(text = "tijd", style = MaterialTheme.typography.bodyMedium)
             }
+        }
+    }
+}
+
+/**
+ * Fotoweergave bij stilstand — §4.3. Vult het grootste deel van het scherm, groot jaartal
+ * (of expliciet "Datum onbekend" — nooit verzonnen), "Deze plek", afstand en bron.
+ */
+@Composable
+private fun PhotoOverlay(photo: DisplayedPhotoInfo) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        Image(
+            painter = rememberAsyncImagePainter(photo.imageUrl),
+            contentDescription = photo.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f))))
+                .padding(24.dp),
+        ) {
+            Text(
+                text = photo.year?.toString() ?: "Datum onbekend",
+                style = MaterialTheme.typography.displayLarge,
+                color = Color.White,
+            )
+            Text(text = "Deze plek", style = MaterialTheme.typography.titleLarge, color = Color.White)
+            Text(
+                text = "%.0f m van de fotopositie — %s".format(Locale.getDefault(), photo.distanceM, photo.attribution),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+            )
         }
     }
 }

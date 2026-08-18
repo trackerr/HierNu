@@ -15,7 +15,7 @@ Bouwvolgorde uit spec §17.1:
 - [x] Stap 4 — MotionStateEngine met configureerbare drempels
 - [x] Stap 5 — "Deze plek bewaren" en TripMoment
 - [x] Stap 6 — WikimediaSource en kandidaatselectie
-- [ ] Stap 7 — Veilige fotoweergave
+- [x] Stap 7 — Veilige fotoweergave
 - [ ] Stap 8 — Route review en exports
 - [ ] Stap 9 — Settings, privacy en fouttoestanden
 - [ ] Stap 10 — APK en veldtestpakket (vereist een fysiek toestel en een echte rit — buiten
@@ -92,6 +92,9 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
 - Ritdetail toont nog geen kaart/route, alleen de samenvatting en de momentenlijst (komt in stap 8).
 - Alleen Wikimedia Commons als beeldbron (§7.1 rang 2); gecureerde archieffoto's (rang 1),
   Mapillary en Google Street View zijn Fase 2 (§2.2).
-- De fotoweergave zelf (het beeld daadwerkelijk tonen tijdens de rit, met de garantie dat het
-  nooit verschijnt tijdens beweging) is stap 7 — tot dan is een gevonden foto alleen zichtbaar
-  in het ritdetail, niet op het rijscherm.
+- De fotoweergave op het rijscherm gaat via `TrackingSessionState.displayedPhoto`, expliciet
+  gegate door de pure functie `displayedPhotoFor()` (nooit iets anders dan STILL) — die functie
+  is los getest, maar de intervalwissel van de locatie-polling zelf (sneller pollen tijdens
+  STILL, zodat de foto op tijd verdwijnt) is alleen op een echt toestel te verifiëren.
+- Geen "toen/nu"-vergelijking, tijdlijn met alternatieve beelden of langere-stilstand-verrijking
+  (§4.3 vervolggedrag) — dat is expliciet Fase 2/latere UX-verfijning, niet MVP.

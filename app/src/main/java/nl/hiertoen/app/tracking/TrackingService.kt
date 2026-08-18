@@ -111,6 +111,9 @@ class TrackingService : Service() {
     private var lastPersistedLon: Double? = null
     private var stillPersistedForCurrentStop: Boolean = false
     private var autoStopMomentTriggered: Boolean = false
+    private var currentStopMomentId: String? = null
+    private var currentDisplayedPhoto: DisplayedPhotoInfo? = null
+    private var currentLocationIntervalMs: Long = LOCATION_POLL_INTERVAL_MS
 
     override fun onCreate() {
         super.onCreate()
@@ -249,9 +252,18 @@ class TrackingService : Service() {
             state = MomentState.NO_IMAGE_YET,
             note = null,
         )
+        currentStopMomentId = moment.id
         repository.saveMoment(moment)
         // Niet awaiten: "Plek bewaard" mag meteen bevestigd worden, de zoekopdracht loopt door (§3.5).
-        serviceScope.launch { photoSearchService.searchForMoment(moment) }
+        // publishState() laat displayedPhoto alleen door bij STILL, dus tijdens het rijden komt
+        // dit resultaat niet meteen in beeld. Vereenvoudiging t.o.v. de letterlijke "wachtrij" uit
+        // §3.1: als er ná deze handmatige marker nog een automatische stop volgt vóórdat de
+        // zoekopdracht klaar is, wint die latere stop de weergave — de marker zelf blijft gewoon
+        // bewaard en zichtbaar in het ritdetail, alleen niet met de pop-up-behandeling.
+        serviceScope.launch {
+            photoSearchService.searchForMoment(moment)
+            refreshDisplayedPhoto(moment.id)
+        }
         return true
     }
 
@@ -259,6 +271,11 @@ class TrackingService : Service() {
     private fun maybeTriggerAutoStopSearch(tripId: String, motionState: MotionState) {
         if (motionState != MotionState.STILL) {
             autoStopMomentTriggered = false
+            // Nieuwe stop = nieuwe zoekopdracht; een foto van de vórige stop mag niet even
+            // "doorschemeren" voordat deze stop zijn eigen resultaat heeft (§13.4-geest: geen
+            // verrassende/foute foto tonen tijdens de korte overgang).
+            currentStopMomentId = null
+            currentDisplayedPhoto = null
             return
         }
         if (autoStopMomentTriggered) return
@@ -279,10 +296,28 @@ class TrackingService : Service() {
             state = MomentState.NO_IMAGE_YET,
             note = null,
         )
+        currentStopMomentId = moment.id
         serviceScope.launch {
             repository.saveMoment(moment)
             photoSearchService.searchForMoment(moment)
+            refreshDisplayedPhoto(moment.id)
         }
+    }
+
+    /** Haalt de winnende kandidaat op en publiceert 'm — maar alleen als deze stop nog actueel is. */
+    private suspend fun refreshDisplayedPhoto(momentId: String) {
+        if (currentStopMomentId != momentId) return
+        val best = repository.getBestCandidate(momentId) ?: return
+        currentDisplayedPhoto = DisplayedPhotoInfo(
+            momentId = momentId,
+            title = best.title,
+            imageUrl = best.imageUrl,
+            thumbUrl = best.thumbUrl,
+            year = best.yearFrom,
+            attribution = best.attribution,
+            distanceM = best.distanceM,
+        )
+        publishState()
     }
 
     private fun persistStatus(tripId: String, status: TripStatus) {
@@ -316,6 +351,9 @@ class TrackingService : Service() {
         lastPersistedLon = null
         stillPersistedForCurrentStop = false
         autoStopMomentTriggered = false
+        currentStopMomentId = null
+        currentDisplayedPhoto = null
+        currentLocationIntervalMs = LOCATION_POLL_INTERVAL_MS
     }
 
     // --- Locatie ---
@@ -329,10 +367,23 @@ class TrackingService : Service() {
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         if (!hasLocationPermission()) return
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_POLL_INTERVAL_MS)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, currentLocationIntervalMs)
             .setMinUpdateIntervalMillis(LOCATION_MIN_INTERVAL_MS)
             .build()
         fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+    }
+
+    /**
+     * Zolang er een foto getoond kan worden (STILL) pollen we sneller — §13.4/§14.4 eisen dat de
+     * foto binnen 1s (mediaan <500ms) verdwijnt zodra beweging hervat wordt, en dat is niet te
+     * halen als we moeten wachten op de volgende trage GPS-fix van een rijdende auto.
+     */
+    @SuppressLint("MissingPermission")
+    private fun updateLocationCadence(motionState: MotionState) {
+        val desired = if (motionState == MotionState.STILL) FAST_POLL_INTERVAL_MS else LOCATION_POLL_INTERVAL_MS
+        if (desired == currentLocationIntervalMs || !hasLocationPermission()) return
+        currentLocationIntervalMs = desired
+        startLocationUpdates()
     }
 
     private fun stopLocationUpdates() {
@@ -359,6 +410,7 @@ class TrackingService : Service() {
         currentSpeedKmh = speedKmh
         if (speedKmh > maxSpeedKmh) maxSpeedKmh = speedKmh
         if (motionState != MotionState.STILL) stillPersistedForCurrentStop = false
+        updateLocationCadence(motionState)
 
         lastKnownLat = location.latitude
         lastKnownLon = location.longitude
@@ -529,10 +581,11 @@ class TrackingService : Service() {
 
     private fun publishState() {
         val tripId = currentTripId ?: return
+        val motionState = engine.currentState
         _session.value = TrackingSessionState.Active(
             tripId = tripId,
-            status = if (engine.currentState == MotionState.PAUSED) TripStatus.PAUSED else TripStatus.ACTIVE,
-            motionState = engine.currentState,
+            status = if (motionState == MotionState.PAUSED) TripStatus.PAUSED else TripStatus.ACTIVE,
+            motionState = motionState,
             mode = currentMode,
             elapsedMs = System.currentTimeMillis() - startedAt,
             movingMs = movingMs,
@@ -540,13 +593,18 @@ class TrackingService : Service() {
             distanceM = distanceM,
             currentSpeedKmh = currentSpeedKmh,
             maxSpeedKmh = maxSpeedKmh,
+            displayedPhoto = displayedPhotoFor(motionState, currentDisplayedPhoto),
         )
     }
 
     companion object {
         private const val ALGORITHM_VERSION = "motion-v1"
         private const val LOCATION_POLL_INTERVAL_MS = 2_000L
-        private const val LOCATION_MIN_INTERVAL_MS = 1_000L
+        // Sneller pollen zolang STILL geldt, zodat de fotoweergave op tijd verdwijnt (zie
+        // updateLocationCadence). LOCATION_MIN_INTERVAL_MS moet hier gelijk aan of onder blijven,
+        // anders begrenst Fused Location de effectieve leversnelheid alsnog tot het oude tempo.
+        private const val FAST_POLL_INTERVAL_MS = 500L
+        private const val LOCATION_MIN_INTERVAL_MS = 500L
         private const val ACTIVITY_UPDATE_INTERVAL_MS = 5_000L
         private const val MIN_ACTIVITY_CONFIDENCE = 50
         private const val SEGMENT_GAP_THRESHOLD_MS = 5 * 60 * 1_000L
