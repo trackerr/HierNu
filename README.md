@@ -16,7 +16,7 @@ Bouwvolgorde uit spec §17.1:
 - [x] Stap 5 — "Deze plek bewaren" en TripMoment
 - [x] Stap 6 — WikimediaSource en kandidaatselectie
 - [x] Stap 7 — Veilige fotoweergave
-- [ ] Stap 8 — Route review en exports
+- [x] Stap 8 — Route review en exports
 - [ ] Stap 9 — Settings, privacy en fouttoestanden
 - [ ] Stap 10 — APK en veldtestpakket (vereist een fysiek toestel en een echte rit — buiten
       wat in deze omgeving uitgevoerd kan worden)
@@ -56,6 +56,7 @@ app/src/main/java/nl/hiertoen/app/
 ├── HierToenApp.kt
 ├── core/                # ActivityType, GeoMath (gedeeld)
 ├── motion/              # MotionStateEngine — statusmachine §5, puur Kotlin/testbaar
+├── export/              # GpxExporter, GeoJsonExporter — §6.5
 ├── photos/              # WikimediaClient, kandidatenscoring §7, PhotoSearchService
 ├── tracking/            # TrackingService (foreground), validatie, adaptieve opslag §6
 ├── ui/
@@ -89,7 +90,11 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
 - `TrackingService` herstelt zichzelf niet automatisch na een door het OS geforceerde
   processtop; een onderbroken rit wordt bij de volgende koude start herkend als RECOVERABLE
   (§6.4), maar de foreground service moet dan opnieuw gestart worden vanuit de UI.
-- Ritdetail toont nog geen kaart/route, alleen de samenvatting en de momentenlijst (komt in stap 8).
+- Ritdetail toont de route als een lichte, kaartprovider-loze Canvas-schets (eigen projectie,
+  geen tegels) — §18 laat de kaartprovider zelf nog als open beslispunt staan, dus een echte
+  MapLibre/Maps-SDK zou dat ongevraagd invullen. Export (GPX/GeoJSON) gaat via Storage Access
+  Framework, geen WRITE_EXTERNAL_STORAGE nodig. CSV-export is bewust overgeslagen (§6.5 noemt
+  het "gewenst", niet verplicht).
 - Alleen Wikimedia Commons als beeldbron (§7.1 rang 2); gecureerde archieffoto's (rang 1),
   Mapillary en Google Street View zijn Fase 2 (§2.2).
 - De fotoweergave op het rijscherm gaat via `TrackingSessionState.displayedPhoto`, expliciet
