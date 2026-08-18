@@ -56,6 +56,10 @@ fun HierToenNavHost(navController: NavHostController = rememberNavController()) 
                 onTripEnded = {
                     navController.popBackStack(HierToenDestination.Start.route, inclusive = false)
                 },
+                onNavigateHome = {
+                    // Alleen het scherm verlaten — de rit/service loopt door (§12.3).
+                    navController.popBackStack(HierToenDestination.Start.route, inclusive = false)
+                },
             )
         }
         composable(

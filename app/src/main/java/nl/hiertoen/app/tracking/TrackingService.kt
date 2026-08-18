@@ -417,6 +417,8 @@ class TrackingService : Service() {
             year = best.yearFrom,
             attribution = best.attribution,
             distanceM = best.distanceM,
+            provider = best.provider,
+            sourcePageUrl = best.sourcePageUrl,
         )
         Log.d(TAG, "moment=$momentId klaar om te tonen (motionState=${engine.currentState})")
         publishState()

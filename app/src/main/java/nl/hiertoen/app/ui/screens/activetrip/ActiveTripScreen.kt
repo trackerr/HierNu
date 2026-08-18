@@ -1,7 +1,5 @@
 package nl.hiertoen.app.ui.screens.activetrip
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,13 +28,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
 import nl.hiertoen.app.R
 import nl.hiertoen.app.data.local.entity.TripMode
@@ -44,8 +38,8 @@ import nl.hiertoen.app.data.local.entity.TripStatus
 import nl.hiertoen.app.motion.MotionState
 import nl.hiertoen.app.settings.SettingsRepository
 import nl.hiertoen.app.settings.UserSettings
-import nl.hiertoen.app.tracking.DisplayedPhotoInfo
 import nl.hiertoen.app.tracking.TrackingSessionState
+import nl.hiertoen.app.ui.photo.FullScreenPhotoViewer
 import java.util.Locale
 
 /**
@@ -53,10 +47,12 @@ import java.util.Locale
  * TrackingService een foto vrijgeeft (alleen bij STILL, §12.3) verschijnt de fotoweergave
  * (§4.3) als overlay; ze sluit zonder animatie of bevestiging zodra beweging hervat — de
  * StateFlow-update van de service is daarvoor voldoende, deze compositie voegt zelf geen
- * animatie toe.
+ * animatie toe. [onNavigateHome] geeft een uitweg als een rit niet netjes is afgesloten en
+ * de gebruiker niet op de foto/het scherm vast wil blijven zitten (verlaat het scherm zonder
+ * de rit te beëindigen — de service blijft gewoon doorlopen, §12.3).
  */
 @Composable
-fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit, resumeTripId: String? = null) {
+fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit, onNavigateHome: () -> Unit, resumeTripId: String? = null) {
     val (handle, sessionState) = rememberTrackingServiceHandle(mode, resumeTripId)
     val session = sessionState.value
 
@@ -132,7 +128,16 @@ fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit, resumeTripId: Stri
             // AnimatedVisibility hier, dat zou de "geen animatie bij hervatte beweging"-eis breken.
             val photo = (session as? TrackingSessionState.Active)?.displayedPhoto
             if (photo != null) {
-                PhotoOverlay(photo)
+                FullScreenPhotoViewer(
+                    imageUrl = photo.imageUrl,
+                    title = photo.title,
+                    year = photo.year,
+                    distanceM = photo.distanceM,
+                    attribution = photo.attribution,
+                    provider = photo.provider,
+                    sourcePageUrl = photo.sourcePageUrl,
+                    onClose = onNavigateHome,
+                )
             }
         }
     }
@@ -182,41 +187,6 @@ private fun ActiveTripContent(session: TrackingSessionState.Active, settings: Us
                     Text(text = "tijd", style = MaterialTheme.typography.bodyMedium)
                 }
             }
-        }
-    }
-}
-
-/**
- * Fotoweergave bij stilstand — §4.3. Vult het grootste deel van het scherm, groot jaartal
- * (of expliciet "Datum onbekend" — nooit verzonnen), "Deze plek", afstand en bron.
- */
-@Composable
-private fun PhotoOverlay(photo: DisplayedPhotoInfo) {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        Image(
-            painter = rememberAsyncImagePainter(photo.imageUrl),
-            contentDescription = photo.title,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f))))
-                .padding(24.dp),
-        ) {
-            Text(
-                text = photo.year?.toString() ?: "Datum onbekend",
-                style = MaterialTheme.typography.displayLarge,
-                color = Color.White,
-            )
-            Text(text = "Deze plek", style = MaterialTheme.typography.titleLarge, color = Color.White)
-            Text(
-                text = "%.0f m van de fotopositie — %s".format(Locale.getDefault(), photo.distanceM, photo.attribution),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White,
-            )
         }
     }
 }

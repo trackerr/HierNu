@@ -17,6 +17,8 @@ data class DisplayedPhotoInfo(
     val year: Int?,
     val attribution: String,
     val distanceM: Double,
+    val provider: String,
+    val sourcePageUrl: String,
 )
 
 /**

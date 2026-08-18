@@ -115,6 +115,15 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
   processtop; een onderbroken rit wordt bij de volgende koude start herkend als RECOVERABLE
   (§6.4) en het startscherm biedt dan "Hervatten" (nieuw segment, oude aggregaten blijven staan)
   of "Afronden" aan (§4.5) — maar dit is alleen op een echt toestel end-to-end te verifiëren.
+  Voor het geval een rit toch op ACTIVE/PAUSED blijft staan zonder dat de RECOVERABLE-flow
+  triggert, heeft "Eerdere ritten" nu ook een handmatige "Beëindigen"-knop per rit. De
+  fotoweergave (rijscherm én ritdetail) heeft daarnaast altijd een zichtbare sluitknop, zodat
+  een niet-netjes-afgesloten rit de app niet meer kan "vastzetten" op een foto.
+- Foto's uit een eerdere rit zijn terug te bekijken vanuit het ritdetail (tik op een moment met
+  een getoond beeld); bij een Street View-resultaat staat er ook een knop naar de echte
+  interactieve 360°-panoramaviewer van Google Maps (via intent, geen eigen viewer). Voor
+  Wikimedia-foto's is dat bewust niet aanwezig — de meeste zijn geen equirectangulaire
+  panorama's, dus die knop zou daar meestal niets doen.
 - Instellingen (§11) worden per rit één keer gelezen bij start/hervatten, niet live herladen
   tijdens een lopende rit — een wijziging in Instellingen werkt pas vanaf de volgende rit.
 - Ritdetail toont de route op een echte OpenStreetMap-kaart (osmdroid, §18: "MapLibre met
