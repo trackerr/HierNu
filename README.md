@@ -80,6 +80,27 @@ emulator werken — zowel lokaal (`./gradlew testDebugUnitTest`) als in CI. `Tra
 zelf (foreground service + Play Services locatie/activity-API's) heeft geen geautomatiseerde
 test — dat vereist een emulator of fysiek toestel en hoort bij de veldtest in stap 10.
 
+## Street View instellen (optioneel)
+
+Zonder sleutel doet de app precies wat hierboven staat: alleen Wikimedia, geen fallback, niets
+crasht. Met een sleutel krijg je ook een beeld op plekken waar Wikimedia niets heeft.
+
+1. Maak een Google Cloud-project met billing (Google rekent per aanroep na een gratis quotum).
+2. Zet de **Street View Static API** aan (APIs & Services → Library).
+3. Maak een API-sleutel (APIs & Services → Credentials → Create credentials → API key).
+4. Beperk 'm tot **Street View Static API** (Restrict key → API restrictions). Een Android-
+   app-restrictie (pakketnaam `nl.hiertoen.app` + SHA-1 van de debug-keystore) kan ook, maar is
+   voor dit veldtest-gebruik niet verplicht — zonder app-restrictie werkt de sleutel ook prima,
+   alleen iets minder streng afgeschermd.
+5. Zet 'm als repository-secret: GitHub → dit repo → Settings → Secrets and variables →
+   Actions → New repository secret → naam `STREETVIEW_API_KEY`, waarde de sleutel zelf.
+6. Push (of herstart handmatig) een CI-run; de resulterende debug-APK heeft de sleutel dan
+   ingebakken via `BuildConfig.STREETVIEW_API_KEY`.
+
+De sleutel komt nooit in de repository terecht — hij wordt alleen via de GitHub Actions-secret
+in de build gelezen (`app/build.gradle.kts`: Gradle-property → env var → `local.properties`,
+in die volgorde, en anders leeg). Zonder sleutel gedraagt de app zich exact als voorheen.
+
 ## Signing / release
 
 Nog niet van toepassing — dit is een debug-only scaffold. Zie spec §16.2 voor het
@@ -104,10 +125,11 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
   zelf toont nog geen live routekaart (§4.2 "Routekaart: schakelbaar") — dat is nu alleen
   statistieken, kaart volgt later. Export (GPX/GeoJSON) gaat via Storage Access Framework, geen
   WRITE_EXTERNAL_STORAGE nodig. CSV-export is bewust overgeslagen (§6.5 noemt het "gewenst").
-- Alleen Wikimedia Commons als beeldbron (§7.1 rang 2); gecureerde archieffoto's (rang 1) en
-  Mapillary zijn Fase 2 (§2.2). Google Street View is uitdrukkelijk niet geïmplementeerd: naast
-  Fase 2 vereist het een Google Cloud-project met billing en (voor URL-signing) een backend
-  (§8.3) — een bewuste keuze om niet zonder overleg aan te gaan.
+- Wikimedia Commons (§7.1 rang 2) is de primaire bron; gecureerde archieffoto's (rang 1) en
+  Mapillary zijn Fase 2 (§2.2). Google Street View (rang 4) is er nu wél, maar alleen als
+  fallback wanneer Wikimedia niets bruikbaars oplevert, en altijd expliciet als "actuele
+  opname" — nooit als historisch beeld, precies zoals §8.3 voorschrijft ("de publieke API
+  biedt geen betrouwbare tijdlijnselector"). Zie "Street View instellen" hieronder.
 - Fout- en debuglogging voor de beeldzoekopdracht staat onder de tags `HierToen/Wikimedia`,
   `HierToen/Photos` en `HierToen/Tracking` (`adb logcat -s HierToen/Wikimedia HierToen/Photos
   HierToen/Tracking`) — nuttig om te zien of een stop wél een zoekopdracht start en wat die

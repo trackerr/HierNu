@@ -1,9 +1,23 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Sleutel komt nooit in de repo (§8.3: geen secrets in Git). Volgorde: Gradle-property (CI geeft
+// 'm door via -P), env var, lokale local.properties (genegeerd door git) — anders leeg, en dan
+// blijft de Street View-fallback simpelweg uit (PhotoSearchService krijgt dan null).
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val streetViewApiKey: String = (project.findProperty("STREETVIEW_API_KEY") as String?)
+    ?: System.getenv("STREETVIEW_API_KEY")
+    ?: localProperties.getProperty("STREETVIEW_API_KEY")
+    ?: ""
 
 android {
     namespace = "nl.hiertoen.app"
@@ -18,6 +32,7 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "STREETVIEW_API_KEY", "\"$streetViewApiKey\"")
     }
 
     buildTypes {
@@ -38,6 +53,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {

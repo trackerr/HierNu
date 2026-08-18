@@ -31,6 +31,8 @@ jobs:
         run: gradle wrapper
 
       - name: Debug build
+        env:
+          STREETVIEW_API_KEY: ${{ secrets.STREETVIEW_API_KEY }}
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Unit tests (incl. Room/Robolectric)

@@ -55,6 +55,8 @@ import nl.hiertoen.app.motion.MotionInput
 import nl.hiertoen.app.motion.MotionState
 import nl.hiertoen.app.motion.MotionStateEngine
 import nl.hiertoen.app.motion.MotionThresholds
+import nl.hiertoen.app.BuildConfig
+import nl.hiertoen.app.photos.GoogleStreetViewClient
 import nl.hiertoen.app.photos.PhotoSearchService
 import nl.hiertoen.app.photos.WikimediaHttpClient
 import nl.hiertoen.app.settings.SettingsRepository
@@ -126,7 +128,8 @@ class TrackingService : Service() {
     override fun onCreate() {
         super.onCreate()
         repository = RepositoryFactory.tripRepository(this)
-        photoSearchService = PhotoSearchService(WikimediaHttpClient(), repository)
+        val streetViewClient = BuildConfig.STREETVIEW_API_KEY.takeIf { it.isNotBlank() }?.let { GoogleStreetViewClient(it) }
+        photoSearchService = PhotoSearchService(WikimediaHttpClient(), repository, streetViewClient)
         settingsRepository = SettingsRepository(this)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         activityRecognitionClient = ActivityRecognition.getClient(this)
