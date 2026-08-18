@@ -1,5 +1,6 @@
 package nl.hiertoen.app.photos
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONException
@@ -22,23 +23,30 @@ interface WikimediaClient {
 class WikimediaHttpClient : WikimediaClient {
     override suspend fun search(lat: Double, lon: Double, radiusM: Int, limit: Int): List<WikimediaCandidate> =
         withContext(Dispatchers.IO) {
+            val url = buildUrl(lat, lon, radiusM, limit)
             try {
-                val connection = (buildUrl(lat, lon, radiusM, limit).openConnection() as HttpURLConnection).apply {
+                val connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = TIMEOUT_MS
                     readTimeout = TIMEOUT_MS
                     setRequestProperty("User-Agent", USER_AGENT)
                 }
                 val body = try {
-                    if (connection.responseCode != HttpURLConnection.HTTP_OK) return@withContext emptyList()
+                    val code = connection.responseCode
+                    if (code != HttpURLConnection.HTTP_OK) {
+                        Log.w(TAG, "Wikimedia gaf HTTP $code terug voor $url")
+                        return@withContext emptyList()
+                    }
                     connection.inputStream.bufferedReader().use { it.readText() }
                 } finally {
                     connection.disconnect()
                 }
-                parseResponse(body)
+                parseResponse(body).also { Log.d(TAG, "${it.size} resultaten voor $url") }
             } catch (e: IOException) {
+                Log.w(TAG, "netwerkfout bij Wikimedia-zoekopdracht ($url)", e)
                 emptyList()
             } catch (e: JSONException) {
+                Log.w(TAG, "kon Wikimedia-respons niet parsen ($url)", e)
                 emptyList()
             }
         }
@@ -92,6 +100,7 @@ class WikimediaHttpClient : WikimediaClient {
     private fun stripHtml(value: String): String = HTML_TAG_REGEX.replace(value, "").trim()
 
     companion object {
+        private const val TAG = "HierToen/Wikimedia"
         private const val API_BASE = "https://commons.wikimedia.org/w/api.php"
         private const val TIMEOUT_MS = 10_000
         private const val MAX_RADIUS_M = 10_000

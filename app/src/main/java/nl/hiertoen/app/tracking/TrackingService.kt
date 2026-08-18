@@ -17,6 +17,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -291,7 +292,10 @@ class TrackingService : Service() {
      */
     suspend fun saveCurrentPlace(): Boolean {
         val tripId = currentTripId ?: return false
-        val lat = lastKnownLat ?: return false
+        val lat = lastKnownLat ?: run {
+            Log.d(TAG, "Deze plek bewaren: nog geen GPS-fix ontvangen, niets om te bewaren")
+            return false
+        }
         val lon = lastKnownLon ?: return false
 
         val moment = TripMomentEntity(
@@ -309,6 +313,7 @@ class TrackingService : Service() {
         )
         currentStopMomentId = moment.id
         repository.saveMoment(moment)
+        Log.d(TAG, "Deze plek bewaren: moment=${moment.id} opgeslagen bij ($lat, $lon)")
         // Niet awaiten: "Plek bewaard" mag meteen bevestigd worden, de zoekopdracht loopt door (§3.5).
         // publishState() laat displayedPhoto alleen door bij STILL, dus tijdens het rijden komt
         // dit resultaat niet meteen in beeld. Vereenvoudiging t.o.v. de letterlijke "wachtrij" uit
@@ -353,7 +358,10 @@ class TrackingService : Service() {
         autoStopMomentTriggered = true
         // §11 "Automatisch beeld bij stilstand": uitgeschakeld betekent geen automatische
         // marker en geen zoekopdracht — "Deze plek bewaren" blijft wel altijd beschikbaar.
-        if (!currentSettings.autoPhotoEnabled) return
+        if (!currentSettings.autoPhotoEnabled) {
+            Log.d(TAG, "auto-stop overgeslagen: autoPhotoEnabled staat uit")
+            return
+        }
 
         val lat = lastKnownLat ?: return
         val lon = lastKnownLon ?: return
@@ -371,19 +379,33 @@ class TrackingService : Service() {
             note = null,
         )
         currentStopMomentId = moment.id
+        Log.d(TAG, "STILL bevestigd bij ($lat, $lon), moment=${moment.id} aangemaakt")
         serviceScope.launch {
             repository.saveMoment(moment)
             if (shouldSearchForPhotos()) {
                 photoSearchService.searchForMoment(moment, currentSettings.searchRadiusM, currentSettings.preferOldest)
                 refreshDisplayedPhoto(moment.id)
+            } else {
+                Log.d(
+                    TAG,
+                    "zoekopdracht overgeslagen: wikimediaEnabled=${currentSettings.wikimediaEnabled} " +
+                        "mobileDataAllowed=${currentSettings.mobileDataAllowed}",
+                )
             }
         }
     }
 
     /** Haalt de winnende kandidaat op en publiceert 'm — maar alleen als deze stop nog actueel is. */
     private suspend fun refreshDisplayedPhoto(momentId: String) {
-        if (currentStopMomentId != momentId) return
-        val best = repository.getBestCandidate(momentId) ?: return
+        if (currentStopMomentId != momentId) {
+            Log.d(TAG, "moment=$momentId is ingehaald door een nieuwere stop, foto niet meer tonen")
+            return
+        }
+        val best = repository.getBestCandidate(momentId)
+        if (best == null) {
+            Log.d(TAG, "moment=$momentId heeft geen kandidaat om te tonen")
+            return
+        }
         currentDisplayedPhoto = DisplayedPhotoInfo(
             momentId = momentId,
             title = best.title,
@@ -393,6 +415,7 @@ class TrackingService : Service() {
             attribution = best.attribution,
             distanceM = best.distanceM,
         )
+        Log.d(TAG, "moment=$momentId klaar om te tonen (motionState=${engine.currentState})")
         publishState()
     }
 
@@ -674,6 +697,7 @@ class TrackingService : Service() {
     }
 
     companion object {
+        private const val TAG = "HierToen/Tracking"
         private const val ALGORITHM_VERSION = "motion-v1"
         private const val LOCATION_POLL_INTERVAL_MS = 2_000L
         // Sneller pollen zolang STILL geldt, zodat de fotoweergave op tijd verdwijnt (zie

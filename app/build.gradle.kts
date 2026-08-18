@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.play.services.location)
     implementation(libs.coil.compose)
+    implementation(libs.osmdroid.android)
 
     // --- Testen ---
     testImplementation(libs.junit)

@@ -1,10 +1,9 @@
 package nl.hiertoen.app.ui.screens.tripdetail
 
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,12 +38,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -59,16 +56,22 @@ import nl.hiertoen.app.data.repository.RepositoryFactory
 import nl.hiertoen.app.data.repository.TripRepository
 import nl.hiertoen.app.export.GeoJsonExporter
 import nl.hiertoen.app.export.GpxExporter
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.cos
 
 /**
- * Ritdetail — §4.4. Kaart met route/markers wordt hier bewust een lichte, kaartprovider-loze
- * Canvas-schets: §18 laat de kaartprovider nog als open beslispunt staan, dus een echte
- * MapLibre/Maps-SDK-integratie zou dat beslispunt ongevraagd voor de gebruiker maken.
+ * Ritdetail — §4.4. De kaart gebruikt OpenStreetMap-tegels via osmdroid: geen API-sleutel
+ * nodig en direct bruikbaar op elk toestel, in lijn met de aanbevolen standaard uit §18
+ * ("MapLibre met geschikte tile-provider") — hier osmdroid i.p.v. MapLibre GL omdat het
+ * eenvoudiger raster-tegels-integreert zonder losse stijl-JSON.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -241,17 +244,15 @@ private fun SummaryStat(label: String, value: String) {
 }
 
 /**
- * Schematische routeweergave zonder kaartprovider (§18 nog open): een eigen Canvas-projectie
- * i.p.v. echte kaarttegels. Start (groen), eind (rood) en momenten (accentkleur) als stippen.
+ * Echte OSM-kaart met route en markers. `osmdroid`s `MapView` is een klassieke Android-`View`,
+ * hier ingebed via `AndroidView`; `onDetach()` bij het verlaten van de compositie voorkomt dat
+ * de tegel-cache/achtergrondthreads van de kaart blijven hangen (aanbevolen osmdroid-patroon).
  */
 @Composable
 private fun RoutePreview(trackPoints: List<TrackPointEntity>, moments: List<TripMomentEntity>) {
     val validPoints = trackPoints.filter { it.validity == TrackPointValidity.VALID }
-    val backgroundColor = MaterialTheme.colorScheme.surfaceVariant
-    val routeColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val accentColor = MaterialTheme.colorScheme.primary
 
-    if (validPoints.size < 2) {
+    if (validPoints.isEmpty()) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = "Nog geen route om te tonen.",
@@ -262,46 +263,62 @@ private fun RoutePreview(trackPoints: List<TrackPointEntity>, moments: List<Trip
         return
     }
 
-    val minLat = validPoints.minOf { it.lat }
-    val maxLat = validPoints.maxOf { it.lat }
-    val minLon = validPoints.minOf { it.lon }
-    val maxLon = validPoints.maxOf { it.lon }
-    val latSpan = (maxLat - minLat).coerceAtLeast(0.0001)
-    val lonScale = cos(Math.toRadians((minLat + maxLat) / 2.0)).coerceAtLeast(0.2)
-    val lonSpan = ((maxLon - minLon) * lonScale).coerceAtLeast(0.0001)
+    var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+    DisposableEffect(Unit) {
+        onDispose { mapViewRef?.onDetach() }
+    }
 
-    Canvas(
+    AndroidView(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor),
-    ) {
-        val pad = 16.dp.toPx()
-        val width = size.width - 2 * pad
-        val height = size.height - 2 * pad
-
-        fun project(lat: Double, lon: Double): Offset {
-            val x = pad + (((lon - minLon) * lonScale) / lonSpan * width).toFloat()
-            val y = pad + ((1.0 - (lat - minLat) / latSpan) * height).toFloat()
-            return Offset(x, y)
-        }
-
-        validPoints.groupBy { it.segmentIndex }.forEach { (_, segmentPoints) ->
-            if (segmentPoints.size < 2) return@forEach
-            val path = Path()
-            segmentPoints.forEachIndexed { index, point ->
-                val offset = project(point.lat, point.lon)
-                if (index == 0) path.moveTo(offset.x, offset.y) else path.lineTo(offset.x, offset.y)
+            .height(240.dp)
+            .clip(RoundedCornerShape(12.dp)),
+        factory = { ctx ->
+            MapView(ctx).apply {
+                setTileSource(TileSourceFactory.MAPNIK)
+                setMultiTouchControls(true)
+                mapViewRef = this
             }
-            drawPath(path, color = routeColor, style = Stroke(width = 5f))
-        }
-
-        drawCircle(color = Color(0xFF4CAF50), radius = 9f, center = project(validPoints.first().lat, validPoints.first().lon))
-        drawCircle(color = Color(0xFFE53935), radius = 9f, center = project(validPoints.last().lat, validPoints.last().lon))
-        moments.forEach { moment -> drawCircle(color = accentColor, radius = 7f, center = project(moment.lat, moment.lon)) }
-    }
+        },
+        update = { mapView -> updateRouteOverlays(mapView, validPoints, moments) },
+    )
 }
+
+private fun updateRouteOverlays(mapView: MapView, validPoints: List<TrackPointEntity>, moments: List<TripMomentEntity>) {
+    mapView.overlays.clear()
+
+    validPoints.groupBy { it.segmentIndex }.values.forEach { segmentPoints ->
+        if (segmentPoints.size < 2) return@forEach
+        mapView.overlays.add(
+            Polyline().apply {
+                setPoints(segmentPoints.map { GeoPoint(it.lat, it.lon) })
+                outlinePaint.color = AndroidColor.parseColor("#E8712A")
+                outlinePaint.strokeWidth = 8f
+            },
+        )
+    }
+
+    mapView.overlays.add(routeMarker(mapView, validPoints.first().lat, validPoints.first().lon, "Start"))
+    mapView.overlays.add(routeMarker(mapView, validPoints.last().lat, validPoints.last().lon, "Einde"))
+    moments.forEach { moment -> mapView.overlays.add(routeMarker(mapView, moment.lat, moment.lon, momentTypeLabel(moment.type))) }
+
+    if (validPoints.size == 1) {
+        mapView.controller.setZoom(17.0)
+        mapView.controller.setCenter(GeoPoint(validPoints.first().lat, validPoints.first().lon))
+    } else {
+        val box = BoundingBox.fromGeoPoints(validPoints.map { GeoPoint(it.lat, it.lon) })
+        // Bounding box passen vereist een gelayoute view; post() wacht tot na de layoutpas.
+        mapView.post { mapView.zoomToBoundingBox(box, false) }
+    }
+    mapView.invalidate()
+}
+
+private fun routeMarker(mapView: MapView, lat: Double, lon: Double, label: String): Marker =
+    Marker(mapView).apply {
+        position = GeoPoint(lat, lon)
+        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        title = label
+    }
 
 @Composable
 private fun MomentRow(moment: TripMomentEntity, repository: TripRepository) {

@@ -96,13 +96,23 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
   of "Afronden" aan (§4.5) — maar dit is alleen op een echt toestel end-to-end te verifiëren.
 - Instellingen (§11) worden per rit één keer gelezen bij start/hervatten, niet live herladen
   tijdens een lopende rit — een wijziging in Instellingen werkt pas vanaf de volgende rit.
-- Ritdetail toont de route als een lichte, kaartprovider-loze Canvas-schets (eigen projectie,
-  geen tegels) — §18 laat de kaartprovider zelf nog als open beslispunt staan, dus een echte
-  MapLibre/Maps-SDK zou dat ongevraagd invullen. Export (GPX/GeoJSON) gaat via Storage Access
-  Framework, geen WRITE_EXTERNAL_STORAGE nodig. CSV-export is bewust overgeslagen (§6.5 noemt
-  het "gewenst", niet verplicht).
-- Alleen Wikimedia Commons als beeldbron (§7.1 rang 2); gecureerde archieffoto's (rang 1),
-  Mapillary en Google Street View zijn Fase 2 (§2.2).
+- Ritdetail toont de route op een echte OpenStreetMap-kaart (osmdroid, §18: "MapLibre met
+  geschikte tile-provider" — hier osmdroid met OSM-raster-tegels, geen API-sleutel nodig).
+  `tile.openstreetmap.org` rechtstreeks aanroepen is prima voor dit persoonlijke veldtest-MVP,
+  maar bij bredere verspreiding hoort daar een eigen tile-provider of caching-laag bij (OSM's
+  tile-usage-policy is niet bedoeld voor productieverkeer van veel gebruikers). Het rijscherm
+  zelf toont nog geen live routekaart (§4.2 "Routekaart: schakelbaar") — dat is nu alleen
+  statistieken, kaart volgt later. Export (GPX/GeoJSON) gaat via Storage Access Framework, geen
+  WRITE_EXTERNAL_STORAGE nodig. CSV-export is bewust overgeslagen (§6.5 noemt het "gewenst").
+- Alleen Wikimedia Commons als beeldbron (§7.1 rang 2); gecureerde archieffoto's (rang 1) en
+  Mapillary zijn Fase 2 (§2.2). Google Street View is uitdrukkelijk niet geïmplementeerd: naast
+  Fase 2 vereist het een Google Cloud-project met billing en (voor URL-signing) een backend
+  (§8.3) — een bewuste keuze om niet zonder overleg aan te gaan.
+- Fout- en debuglogging voor de beeldzoekopdracht staat onder de tags `HierToen/Wikimedia`,
+  `HierToen/Photos` en `HierToen/Tracking` (`adb logcat -s HierToen/Wikimedia HierToen/Photos
+  HierToen/Tracking`) — nuttig om te zien of een stop wél een zoekopdracht start en wat die
+  oplevert, zonder dat de app crasht als er iets misgaat (elke fout valt terug op
+  PHOTO_NOT_FOUND in plaats van de rit te onderbreken).
 - De fotoweergave op het rijscherm gaat via `TrackingSessionState.displayedPhoto`, expliciet
   gegate door de pure functie `displayedPhotoFor()` (nooit iets anders dan STILL) — die functie
   is los getest, maar de intervalwissel van de locatie-polling zelf (sneller pollen tijdens

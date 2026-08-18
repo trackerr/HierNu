@@ -1,5 +1,6 @@
 package nl.hiertoen.app.photos
 
+import android.util.Log
 import nl.hiertoen.app.data.local.entity.CachePolicy
 import nl.hiertoen.app.data.local.entity.MomentState
 import nl.hiertoen.app.data.local.entity.PhotoCandidateEntity
@@ -24,31 +25,43 @@ class PhotoSearchService(
     ) {
         repository.saveMoment(moment.copy(state = MomentState.PENDING_LOOKUP))
 
-        val raw = client.search(moment.lat, moment.lon, searchRadiusM)
-        val context = PhotoCandidateScorer.Context(
-            queryLat = moment.lat,
-            queryLon = moment.lon,
-            queryHeadingDeg = moment.bearingDeg,
-            searchRadiusM = searchRadiusM.toDouble(),
-            currentYear = Year.now().value,
-            preferOldest = preferOldest,
-        )
+        try {
+            val raw = client.search(moment.lat, moment.lon, searchRadiusM)
+            Log.d(TAG, "moment=${moment.id} radius=${searchRadiusM}m ruwe resultaten=${raw.size}")
 
-        val usable = raw.asSequence()
-            .map { PhotoCandidateScorer.score(it, context) }
-            // §7.4: een bron zonder duidelijke licentie tonen we niet, zelfs niet als alternatief.
-            .filter { it.hasUsableLicense }
-            .sortedByDescending { it.score }
-            .toList()
+            val context = PhotoCandidateScorer.Context(
+                queryLat = moment.lat,
+                queryLon = moment.lon,
+                queryHeadingDeg = moment.bearingDeg,
+                searchRadiusM = searchRadiusM.toDouble(),
+                currentYear = Year.now().value,
+                preferOldest = preferOldest,
+            )
 
-        if (usable.isEmpty()) {
+            val usable = raw.asSequence()
+                .map { PhotoCandidateScorer.score(it, context) }
+                // §7.4: een bron zonder duidelijke licentie tonen we niet, zelfs niet als alternatief.
+                .filter { it.hasUsableLicense }
+                .sortedByDescending { it.score }
+                .toList()
+            Log.d(TAG, "moment=${moment.id} bruikbaar na licentiefilter=${usable.size}")
+
+            if (usable.isEmpty()) {
+                repository.saveMoment(moment.copy(state = MomentState.PHOTO_NOT_FOUND))
+                return
+            }
+
+            val entities = usable.map { it.toEntity(moment.id) }
+            repository.saveCandidates(entities)
+            repository.saveMoment(moment.copy(state = MomentState.PHOTO_SHOWN, source = PROVIDER_WIKIMEDIA))
+            Log.d(TAG, "moment=${moment.id} PHOTO_SHOWN, beste score=${entities.maxOf { it.score }}")
+        } catch (e: Exception) {
+            // Nooit stil op PENDING_LOOKUP laten hangen: een onverwachte fout (parsing, DB,
+            // scoring) mag het moment niet voor altijd "aan het zoeken" laten staan, en mag
+            // vooral de service niet laten crashen — de rit zelf moet gewoon doorlopen.
+            Log.e(TAG, "beeldzoekopdracht voor moment=${moment.id} mislukt", e)
             repository.saveMoment(moment.copy(state = MomentState.PHOTO_NOT_FOUND))
-            return
         }
-
-        val entities = usable.map { it.toEntity(moment.id) }
-        repository.saveCandidates(entities)
-        repository.saveMoment(moment.copy(state = MomentState.PHOTO_SHOWN, source = PROVIDER_WIKIMEDIA))
     }
 
     private fun ScoredCandidate.toEntity(momentId: String): PhotoCandidateEntity = PhotoCandidateEntity(
@@ -81,6 +94,7 @@ class PhotoSearchService(
     }
 
     companion object {
+        private const val TAG = "HierToen/Photos"
         const val PROVIDER_WIKIMEDIA = "wikimedia"
 
         // Standaard zoekradius §11; TrackingService geeft de waarde uit SettingsRepository door.
