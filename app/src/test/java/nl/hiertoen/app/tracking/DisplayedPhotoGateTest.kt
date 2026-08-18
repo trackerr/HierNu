@@ -1,6 +1,7 @@
 package nl.hiertoen.app.tracking
 
 import nl.hiertoen.app.motion.MotionState
+import nl.hiertoen.app.photos.PhotoSearchService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -19,6 +20,8 @@ class DisplayedPhotoGateTest {
         year = 1936,
         attribution = "Jane Doe — CC BY-SA 4.0 (Wikimedia Commons)",
         distanceM = 12.0,
+        provider = PhotoSearchService.PROVIDER_WIKIMEDIA,
+        sourcePageUrl = "https://commons.wikimedia.org/wiki/File:Test.jpg",
     )
 
     @Test
