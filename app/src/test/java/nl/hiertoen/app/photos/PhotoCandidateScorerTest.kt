@@ -10,12 +10,13 @@ class PhotoCandidateScorerTest {
     private val queryLat = 52.2215
     private val queryLon = 6.8937
 
-    private fun context(radiusM: Double = 500.0, headingDeg: Float? = null) = PhotoCandidateScorer.Context(
+    private fun context(radiusM: Double = 500.0, headingDeg: Float? = null, preferOldest: Boolean = true) = PhotoCandidateScorer.Context(
         queryLat = queryLat,
         queryLon = queryLon,
         queryHeadingDeg = headingDeg,
         searchRadiusM = radiusM,
         currentYear = 2026,
+        preferOldest = preferOldest,
     )
 
     private fun candidate(
@@ -102,5 +103,21 @@ class PhotoCandidateScorerTest {
     fun `jaartal wordt overgenomen van de ruwe datumtekst`() {
         val scored = PhotoCandidateScorer.score(candidate(rawDate = "circa 1928"), context())
         assertEquals(1928, scored.year)
+    }
+
+    @Test
+    fun `preferOldest UIT negeert het jaartal, dichterbij wint puur op afstand`() {
+        // Zonder de voorkeur voor oud zou een recentere foto exact op de locatie moeten winnen
+        // van een oudere foto verderop, puur omdat proximity het volle gewicht krijgt.
+        val exactRecent = PhotoCandidateScorer.score(
+            candidate(lat = queryLat, lon = queryLon, rawDate = "2020"),
+            context(preferOldest = false),
+        )
+        val farOlder = PhotoCandidateScorer.score(
+            candidate(lat = queryLat + 0.0036, lon = queryLon, rawDate = "1900"),
+            context(preferOldest = false),
+        )
+
+        assertTrue(exactRecent.score > farOlder.score)
     }
 }

@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
@@ -40,6 +42,8 @@ import nl.hiertoen.app.R
 import nl.hiertoen.app.data.local.entity.TripMode
 import nl.hiertoen.app.data.local.entity.TripStatus
 import nl.hiertoen.app.motion.MotionState
+import nl.hiertoen.app.settings.SettingsRepository
+import nl.hiertoen.app.settings.UserSettings
 import nl.hiertoen.app.tracking.DisplayedPhotoInfo
 import nl.hiertoen.app.tracking.TrackingSessionState
 import java.util.Locale
@@ -52,9 +56,13 @@ import java.util.Locale
  * animatie toe.
  */
 @Composable
-fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit) {
-    val (handle, sessionState) = rememberTrackingServiceHandle(mode)
+fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit, resumeTripId: String? = null) {
+    val (handle, sessionState) = rememberTrackingServiceHandle(mode, resumeTripId)
     val session = sessionState.value
+
+    val context = LocalContext.current
+    val settingsRepository = remember { SettingsRepository(context) }
+    val settings by settingsRepository.settings.collectAsState(initial = UserSettings())
 
     var showStopConfirm by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -72,7 +80,7 @@ fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 when (session) {
-                    is TrackingSessionState.Active -> ActiveTripContent(session)
+                    is TrackingSessionState.Active -> ActiveTripContent(session, settings)
                     TrackingSessionState.NoActiveTrip -> Text(
                         text = "Rit wordt gestart…",
                         style = MaterialTheme.typography.bodyLarge,
@@ -149,26 +157,30 @@ fun ActiveTripScreen(mode: TripMode, onTripEnded: () -> Unit) {
 }
 
 @Composable
-private fun ActiveTripContent(session: TrackingSessionState.Active) {
+private fun ActiveTripContent(session: TrackingSessionState.Active, settings: UserSettings) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = motionStateLabel(session.motionState), style = MaterialTheme.typography.titleLarge)
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "%.0f".format(Locale.getDefault(), session.currentSpeedKmh),
-            style = MaterialTheme.typography.displayLarge,
-        )
-        Text(text = "km/u", style = MaterialTheme.typography.bodyMedium)
+        if (settings.showSpeed) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "%.0f".format(Locale.getDefault(), session.currentSpeedKmh),
+                style = MaterialTheme.typography.displayLarge,
+            )
+            Text(text = "km/u", style = MaterialTheme.typography.bodyMedium)
+        }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "%.1f km".format(Locale.getDefault(), session.distanceM / 1000.0), style = MaterialTheme.typography.titleLarge)
-                Text(text = "afstand", style = MaterialTheme.typography.bodyMedium)
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = formatDuration(session.elapsedMs), style = MaterialTheme.typography.titleLarge)
-                Text(text = "tijd", style = MaterialTheme.typography.bodyMedium)
+        if (settings.showDistanceTime) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "%.1f km".format(Locale.getDefault(), session.distanceM / 1000.0), style = MaterialTheme.typography.titleLarge)
+                    Text(text = "afstand", style = MaterialTheme.typography.bodyMedium)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = formatDuration(session.elapsedMs), style = MaterialTheme.typography.titleLarge)
+                    Text(text = "tijd", style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
     }

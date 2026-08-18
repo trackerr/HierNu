@@ -11,9 +11,11 @@ sealed class HierToenDestination(val route: String) {
     data object Trips : HierToenDestination("trips")
     data object Settings : HierToenDestination("settings")
 
-    data object ActiveTrip : HierToenDestination("activeTrip/{mode}") {
+    data object ActiveTrip : HierToenDestination("activeTrip/{mode}?resumeTripId={resumeTripId}") {
         const val ARG_MODE = "mode"
+        const val ARG_RESUME_TRIP_ID = "resumeTripId"
         fun routeFor(mode: TripMode) = "activeTrip/${mode.name}"
+        fun routeForResume(tripId: String, mode: TripMode) = "activeTrip/${mode.name}?resumeTripId=$tripId"
     }
 
     data object TripDetail : HierToenDestination("trips/{tripId}") {

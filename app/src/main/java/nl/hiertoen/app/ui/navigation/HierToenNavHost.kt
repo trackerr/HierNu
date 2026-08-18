@@ -20,6 +20,9 @@ fun HierToenNavHost(navController: NavHostController = rememberNavController()) 
         composable(HierToenDestination.Start.route) {
             StartScreen(
                 onStartTrip = { mode -> navController.navigate(HierToenDestination.ActiveTrip.routeFor(mode)) },
+                onResumeTrip = { tripId, mode ->
+                    navController.navigate(HierToenDestination.ActiveTrip.routeForResume(tripId, mode))
+                },
                 onOpenTrips = { navController.navigate(HierToenDestination.Trips.route) },
                 onOpenSettings = { navController.navigate(HierToenDestination.Settings.route) },
             )
@@ -35,12 +38,21 @@ fun HierToenNavHost(navController: NavHostController = rememberNavController()) 
         }
         composable(
             route = HierToenDestination.ActiveTrip.route,
-            arguments = listOf(navArgument(HierToenDestination.ActiveTrip.ARG_MODE) { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument(HierToenDestination.ActiveTrip.ARG_MODE) { type = NavType.StringType },
+                navArgument(HierToenDestination.ActiveTrip.ARG_RESUME_TRIP_ID) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
         ) { backStackEntry ->
             val modeArg = backStackEntry.arguments?.getString(HierToenDestination.ActiveTrip.ARG_MODE)
             val mode = modeArg?.let { runCatching { TripMode.valueOf(it) }.getOrNull() } ?: TripMode.CAR
+            val resumeTripId = backStackEntry.arguments?.getString(HierToenDestination.ActiveTrip.ARG_RESUME_TRIP_ID)
             ActiveTripScreen(
                 mode = mode,
+                resumeTripId = resumeTripId,
                 onTripEnded = {
                     navController.popBackStack(HierToenDestination.Start.route, inclusive = false)
                 },

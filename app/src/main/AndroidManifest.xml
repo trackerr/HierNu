@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Beeldbronnen en metadata (§12.4) — vanaf stap 6 (Wikimedia Commons). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Wifi-only-instelling (§11 "Mobiele data") controleren voordat een zoekopdracht start. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:name=".HierToenApp"

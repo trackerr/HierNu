@@ -11,6 +11,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -34,6 +36,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import nl.hiertoen.app.core.ActivityType
 import nl.hiertoen.app.core.GeoMath
@@ -53,6 +56,8 @@ import nl.hiertoen.app.motion.MotionStateEngine
 import nl.hiertoen.app.motion.MotionThresholds
 import nl.hiertoen.app.photos.PhotoSearchService
 import nl.hiertoen.app.photos.WikimediaHttpClient
+import nl.hiertoen.app.settings.SettingsRepository
+import nl.hiertoen.app.settings.UserSettings
 import java.util.UUID
 
 /**
@@ -77,8 +82,10 @@ class TrackingService : Service() {
 
     private lateinit var repository: TripRepository
     private lateinit var photoSearchService: PhotoSearchService
+    private lateinit var settingsRepository: SettingsRepository
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var activityRecognitionClient: ActivityRecognitionClient
+    private var currentSettings: UserSettings = UserSettings()
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
@@ -119,6 +126,7 @@ class TrackingService : Service() {
         super.onCreate()
         repository = RepositoryFactory.tripRepository(this)
         photoSearchService = PhotoSearchService(WikimediaHttpClient(), repository)
+        settingsRepository = SettingsRepository(this)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         activityRecognitionClient = ActivityRecognition.getClient(this)
         TrackingNotifications.ensureChannel(this)
@@ -145,16 +153,21 @@ class TrackingService : Service() {
         if (_session.value is TrackingSessionState.Active) return
 
         currentMode = mode
-        engine = MotionStateEngine(if (mode == TripMode.BICYCLE) MotionThresholds.BICYCLE else MotionThresholds.CAR)
-        recordingPolicy = AdaptiveRecordingPolicy(mode)
-        engine.start()
         resetTripBookkeeping()
-
         val tripId = UUID.randomUUID().toString()
         currentTripId = tripId
         startedAt = System.currentTimeMillis()
 
+        // Instellingen (stopvertraging o.a.) bepalen de MotionStateEngine, dus die moeten
+        // geladen zijn vóórdat de engine wordt aangemaakt en de eerste locatie-update kan
+        // binnenkomen — vandaar dat startForeground/startLocationUpdates hier ná de settings-
+        // read gebeuren i.p.v. synchroon in startTrip() zelf.
         serviceScope.launch {
+            currentSettings = settingsRepository.current()
+            engine = MotionStateEngine(buildThresholds(mode, currentSettings))
+            recordingPolicy = AdaptiveRecordingPolicy(mode)
+            engine.start()
+
             repository.saveTrip(
                 TripEntity(
                     id = tripId,
@@ -172,12 +185,54 @@ class TrackingService : Service() {
                     createdAt = startedAt,
                 ),
             )
+
+            startForegroundInternal()
+            startLocationUpdates()
+            startActivityUpdatesInternal()
+            publishState()
         }
+    }
+
+    /** Niet-suspend gemakswrapper, zodat aanroepers dezelfde stijl als [startTrip] kunnen gebruiken. */
+    fun resumeExistingTrip(tripId: String) {
+        serviceScope.launch { resumeExistingTripSuspend(tripId) }
+    }
+
+    /**
+     * §4.5 "App herstart -> Actieve rit herstellen?": zet een RECOVERABLE rit terug op ACTIVE
+     * en telt vanaf de eerder opgeslagen aggregaten verder, in een nieuw segment (§6.2) zodat
+     * het gat tussen crash en herstart niet als doorgereden route wordt getekend.
+     */
+    private suspend fun resumeExistingTripSuspend(tripId: String) {
+        if (_session.value is TrackingSessionState.Active) return
+        val trip = repository.getTrip(tripId) ?: return
+
+        currentSettings = settingsRepository.current()
+        currentMode = trip.mode
+        resetTripBookkeeping()
+        engine = MotionStateEngine(buildThresholds(trip.mode, currentSettings))
+        recordingPolicy = AdaptiveRecordingPolicy(trip.mode)
+        engine.start()
+
+        distanceM = trip.distanceM
+        movingMs = trip.movingMs
+        stoppedMs = trip.stoppedMs
+        maxSpeedKmh = trip.maxSpeedKmh
+        currentTripId = tripId
+        startedAt = trip.startedAt
+        segmentIndex = (repository.observeTrackPoints(tripId).first().maxOfOrNull { it.segmentIndex } ?: -1) + 1
+
+        repository.saveTrip(trip.copy(status = TripStatus.ACTIVE, endedAt = null))
 
         startForegroundInternal()
         startLocationUpdates()
         startActivityUpdatesInternal()
         publishState()
+    }
+
+    private fun buildThresholds(mode: TripMode, settings: UserSettings): MotionThresholds {
+        val base = if (mode == TripMode.BICYCLE) MotionThresholds.BICYCLE else MotionThresholds.CAR
+        return base.copy(stopDelayMs = settings.stopDelaySeconds * 1_000L)
     }
 
     fun pauseTrip() {
@@ -260,11 +315,27 @@ class TrackingService : Service() {
         // §3.1: als er ná deze handmatige marker nog een automatische stop volgt vóórdat de
         // zoekopdracht klaar is, wint die latere stop de weergave — de marker zelf blijft gewoon
         // bewaard en zichtbaar in het ritdetail, alleen niet met de pop-up-behandeling.
-        serviceScope.launch {
-            photoSearchService.searchForMoment(moment)
-            refreshDisplayedPhoto(moment.id)
+        if (shouldSearchForPhotos()) {
+            serviceScope.launch {
+                photoSearchService.searchForMoment(moment, currentSettings.searchRadiusM, currentSettings.preferOldest)
+                refreshDisplayedPhoto(moment.id)
+            }
         }
         return true
+    }
+
+    /** §11: Wikimedia-bron uit, of mobiele data niet toegestaan terwijl er geen wifi is. */
+    private fun shouldSearchForPhotos(): Boolean {
+        if (!currentSettings.wikimediaEnabled) return false
+        if (!currentSettings.mobileDataAllowed && !isOnWifi()) return false
+        return true
+    }
+
+    private fun isOnWifi(): Boolean {
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return true
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
 
     /** MVP-05: automatisch een historische foto zoeken zodra een stop bevestigd is — precies één keer per stop. */
@@ -280,6 +351,9 @@ class TrackingService : Service() {
         }
         if (autoStopMomentTriggered) return
         autoStopMomentTriggered = true
+        // §11 "Automatisch beeld bij stilstand": uitgeschakeld betekent geen automatische
+        // marker en geen zoekopdracht — "Deze plek bewaren" blijft wel altijd beschikbaar.
+        if (!currentSettings.autoPhotoEnabled) return
 
         val lat = lastKnownLat ?: return
         val lon = lastKnownLon ?: return
@@ -299,8 +373,10 @@ class TrackingService : Service() {
         currentStopMomentId = moment.id
         serviceScope.launch {
             repository.saveMoment(moment)
-            photoSearchService.searchForMoment(moment)
-            refreshDisplayedPhoto(moment.id)
+            if (shouldSearchForPhotos()) {
+                photoSearchService.searchForMoment(moment, currentSettings.searchRadiusM, currentSettings.preferOldest)
+                refreshDisplayedPhoto(moment.id)
+            }
         }
     }
 

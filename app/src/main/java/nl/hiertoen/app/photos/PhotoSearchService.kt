@@ -16,9 +16,12 @@ import java.util.UUID
 class PhotoSearchService(
     private val client: WikimediaClient,
     private val repository: TripRepository,
-    private val searchRadiusM: Int = DEFAULT_SEARCH_RADIUS_M,
 ) {
-    suspend fun searchForMoment(moment: TripMomentEntity) {
+    suspend fun searchForMoment(
+        moment: TripMomentEntity,
+        searchRadiusM: Int = DEFAULT_SEARCH_RADIUS_M,
+        preferOldest: Boolean = true,
+    ) {
         repository.saveMoment(moment.copy(state = MomentState.PENDING_LOOKUP))
 
         val raw = client.search(moment.lat, moment.lon, searchRadiusM)
@@ -28,6 +31,7 @@ class PhotoSearchService(
             queryHeadingDeg = moment.bearingDeg,
             searchRadiusM = searchRadiusM.toDouble(),
             currentYear = Year.now().value,
+            preferOldest = preferOldest,
         )
 
         val usable = raw.asSequence()
@@ -79,7 +83,7 @@ class PhotoSearchService(
     companion object {
         const val PROVIDER_WIKIMEDIA = "wikimedia"
 
-        // Standaard zoekradius §11; wordt in stap 9 instelbaar via SettingsRepository.
+        // Standaard zoekradius §11; TrackingService geeft de waarde uit SettingsRepository door.
         const val DEFAULT_SEARCH_RADIUS_M = 100
     }
 }

@@ -24,6 +24,8 @@ object PhotoCandidateScorer {
         val queryHeadingDeg: Float?,
         val searchRadiusM: Double,
         val currentYear: Int,
+        /** §11 "Voorkeur": Aan = oudste bruikbare beeld, Uit = dichtstbijzijnde (proximity krijgt dan het volle gewicht). */
+        val preferOldest: Boolean = true,
     )
 
     private const val EARLIEST_PLAUSIBLE_YEAR = 1850
@@ -33,7 +35,7 @@ object PhotoCandidateScorer {
         val year = YearParser.extractYear(candidate.rawDate)
 
         val proximity = (1.0 - distanceM / context.searchRadiusM).coerceIn(0.0, 1.0)
-        val agePreference = agePreferenceScore(year, context.currentYear)
+        val agePreference = if (context.preferOldest) agePreferenceScore(year, context.currentYear) else 0.5
         val headingMatch = headingMatchScore(context.queryHeadingDeg, candidate.headingDeg)
         val imageQuality = imageQualityScore(candidate.widthPx, candidate.heightPx)
         val metadataReliability = metadataReliabilityScore(candidate)

@@ -32,10 +32,14 @@ class TrackingServiceHandle internal constructor(private val context: Context) {
     fun stop() = bound?.stopTrip()
     suspend fun saveCurrentPlace(): Boolean = bound?.saveCurrentPlace() ?: false
 
-    internal fun attach(service: TrackingService, mode: TripMode) {
+    internal fun attach(service: TrackingService, mode: TripMode, resumeTripId: String?) {
         bound = service
         if (service.session.value is TrackingSessionState.NoActiveTrip) {
-            service.startTrip(mode)
+            if (resumeTripId != null) {
+                service.resumeExistingTrip(resumeTripId)
+            } else {
+                service.startTrip(mode)
+            }
         }
     }
 
@@ -45,7 +49,7 @@ class TrackingServiceHandle internal constructor(private val context: Context) {
 }
 
 @Composable
-fun rememberTrackingServiceHandle(mode: TripMode): Pair<TrackingServiceHandle, State<TrackingSessionState>> {
+fun rememberTrackingServiceHandle(mode: TripMode, resumeTripId: String? = null): Pair<TrackingServiceHandle, State<TrackingSessionState>> {
     val context = LocalContext.current
     val handle = remember { TrackingServiceHandle(context) }
     var boundService by remember { mutableStateOf<TrackingService?>(null) }
@@ -55,7 +59,7 @@ fun rememberTrackingServiceHandle(mode: TripMode): Pair<TrackingServiceHandle, S
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
                 val service = (binder as TrackingService.LocalBinder).service
-                handle.attach(service, mode)
+                handle.attach(service, mode, resumeTripId)
                 boundService = service
             }
 

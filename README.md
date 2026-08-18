@@ -17,7 +17,7 @@ Bouwvolgorde uit spec §17.1:
 - [x] Stap 6 — WikimediaSource en kandidaatselectie
 - [x] Stap 7 — Veilige fotoweergave
 - [x] Stap 8 — Route review en exports
-- [ ] Stap 9 — Settings, privacy en fouttoestanden
+- [x] Stap 9 — Settings, privacy en fouttoestanden
 - [ ] Stap 10 — APK en veldtestpakket (vereist een fysiek toestel en een echte rit — buiten
       wat in deze omgeving uitgevoerd kan worden)
 
@@ -58,6 +58,7 @@ app/src/main/java/nl/hiertoen/app/
 ├── motion/              # MotionStateEngine — statusmachine §5, puur Kotlin/testbaar
 ├── export/              # GpxExporter, GeoJsonExporter — §6.5
 ├── photos/              # WikimediaClient, kandidatenscoring §7, PhotoSearchService
+├── settings/            # SettingsRepository (DataStore) — §11
 ├── tracking/            # TrackingService (foreground), validatie, adaptieve opslag §6
 ├── ui/
 │   ├── theme/            # Donker, zwart met oranje accent — §1.3
@@ -89,7 +90,10 @@ nog te bevestigen pakketnaam-beslispunt (`nl.hiertoen.app`, voorlopig).
   Studio of door `gradle wrapper` te draaien.
 - `TrackingService` herstelt zichzelf niet automatisch na een door het OS geforceerde
   processtop; een onderbroken rit wordt bij de volgende koude start herkend als RECOVERABLE
-  (§6.4), maar de foreground service moet dan opnieuw gestart worden vanuit de UI.
+  (§6.4) en het startscherm biedt dan "Hervatten" (nieuw segment, oude aggregaten blijven staan)
+  of "Afronden" aan (§4.5) — maar dit is alleen op een echt toestel end-to-end te verifiëren.
+- Instellingen (§11) worden per rit één keer gelezen bij start/hervatten, niet live herladen
+  tijdens een lopende rit — een wijziging in Instellingen werkt pas vanaf de volgende rit.
 - Ritdetail toont de route als een lichte, kaartprovider-loze Canvas-schets (eigen projectie,
   geen tegels) — §18 laat de kaartprovider zelf nog als open beslispunt staan, dus een echte
   MapLibre/Maps-SDK zou dat ongevraagd invullen. Export (GPX/GeoJSON) gaat via Storage Access
